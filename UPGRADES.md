@@ -279,16 +279,161 @@ The Docker Compose already has `c2-server` as a service. Wire the agent to conne
 
 ---
 
-## P7 — Security Hardening Before Real Use
+## P7 — Proxy & Anonymity Layer Overhaul
+
+The current proxy layer has 3 critical failure modes that make it unsafe for real use. The `proxy_guard.py` is a 1050+ line file that mixes genuine enforcement with theoretical prompt decoration — and the entire system has a kill switch (`--no-anonymity`) that bypasses everything silently.
+
+### 7a — Kill `--no-anonymity` Bypass (HIGH)
+
+The `--no-anonymity` flag is checked in **8 places** across the codebase. Every time it's `True`, the proxy guard logs `"BYPASSED (no_anonymity mode)"` and returns success without checking anything.
+
+**Files to fix:**
+
+| File | Line | What it does |
+|------|------|-------------|
+| `orchestrator/proxy_guard.py` | 202, 242, 308 | `__init__` stores `no_anonymity`, `check()` and `_route_through_tor()` return immediately if set |
+| `orchestrator/brain/anonymity_guard.py` | 12, 86 | Passes `allow_skip` straight to `ProxyGuard(no_anonymity=True)` |
+| `orchestrator/brain/api.py` | 41, 97, 110, 112, 177 | `start_autonomous` accepts and forwards `no_anonymity` |
+| `orchestrator/modes/autonomous.py` | 237, 245, 247 | Same pattern |
+| `orchestrator/app.py` | 66, 140, 416 | CLI parses `--no-anonymity` and logs to `anon_logger` (but does not abort) |
+| `raphael_cli.py` | — | Not checked but likely has same pattern |
+
+**Fix:**
+
+```python
+# In proxy_guard.py — remove the bypass path entirely:
+def check(self):
+    # Delete: if self._no_anonymity: return {"bypassed": True}
+    # Always enforce:
+    results = {}
+    results["tor"] = self._check_tor()
+    results["dns"] = self._check_dns_leak()
+    results["ipv6"] = self._check_ipv6()
+    ...
+```
+
+If the user needs a dev mode for local testing, gate it behind an environment variable (`RAPHAEL_DEV_MODE=1`) that logs a **critical warning to stderr** and requires `--confirm-dev-mode` CLI flag. One gate, not 8 independent checks.
+
+### 7b — Fix DNS Leaks (HIGH)
+
+`orchestrator/proxy_guard.py:697` uses hardcoded `1.1.1.1` and `8.8.8.8` for direct DNS resolution checks:
+
+```python
+# Line ~697 — DNS resolution bypasses Tor
+def _check_dns_leak(self):
+    for ns in ["1.1.1.1", "8.8.8.8"]:
+        socket.create_connection((ns, 53), timeout=3)  # Direct UDP to Cloudflare/Google
+```
+
+This is a **test** that detects leaks, but the actual `socket` calls in the rest of the file may also bypass Tor if not using `socks5h://`. The fix:
+
+1. Replace all raw `socket.create_connection` calls with Tor-routed connections (via `requests` with `proxies={"http": "socks5h://tor-proxy:9050", "https": "socks5h://tor-proxy:9050"}`)
+2. Force DNS resolution through Tor by using `socks5h` (the `h` is critical — it routes DNS through the SOCKS proxy) instead of `socks5`
+3. Remove the hardcoded DNS server tests that leak by connecting directly
+
+### 7c — IPv6 Isolation (HIGH)
+
+IPv6 is not blocked anywhere. The Docker containers inherit the host's IPv6 stack. If the host has IPv6, traffic can leak regardless of Tor/VPN.
+
+**Fix in each Dockerfile:**
+
+```dockerfile
+RUN sysctl -w net.ipv6.conf.all.disable_ipv6=1
+RUN ip6tables -P INPUT DROP && ip6tables -P OUTPUT DROP && ip6tables -P FORWARD DROP
+```
+
+Or in `docker-compose.yml` with `sysctls:`:
+
+```yaml
+services:
+  autonomous-brain:
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+```
+
+Add to every service that makes outbound connections: `recon-pipeline`, `cai-service`, `sword`, `phishing`, `exfil`, `autonomous-brain`, `cloak-service`.
+
+### 7d — Tor Control Password Consistency (MEDIUM)
+
+Two different env var names for the same thing:
+
+| Var | Used by |
+|-----|---------|
+| `TOR_PASSWORD` | `.env.example`, `docker-compose.yml`, `cloak-service` |
+| `TOR_CONTROL_PASS` | `proxy_guard.py:436`, `anonymity_guard.py:45`, `docker-compose.yml` |
+
+`docker-compose.yml` sets `TOR_CONTROL_PASS` for the tor-proxy container. `anonymity_guard.py` reads `TOR_CONTROL_PASS`. But `.env.example` documents `TOR_PASSWORD`. This means anyone following the setup guide will have a broken Tor control connection.
+
+**Fix:**
+- Standardize on `TOR_CONTROL_PASS` everywhere (it's more descriptive)
+- Update `.env.example` to use `TOR_CONTROL_PASS`
+- Add a fallback: if `TOR_CONTROL_PASS` is empty, try reading `TOR_PASSWORD`
+
+### 7e — Make the Kill Switch Scripts Work Inside Docker (MEDIUM)
+
+`kill_switch.sh` and `kill_switch_status.sh` are shell scripts meant for the host, not the containers. The `docker-compose.yml` already has a `tor-proxy` service with proper network isolation. The kill switch should work at the container level:
+
+```yaml
+services:
+  autonomous-brain:
+    cap_add:
+      - NET_ADMIN  # Already has this
+    # Add iptables rules on container start:
+    entrypoint: |
+      sh -c "
+        ip6tables -P OUTPUT DROP &&
+        iptables -P OUTPUT DROP &&
+        iptables -A OUTPUT -o lo -j ACCEPT &&
+        iptables -A OUTPUT -d $$TOR_PROXY_IP -j ACCEPT &&
+        exec python -m uvicorn orchestrator.brain.api:app --host 0.0.0.0 --port 3700
+      "
+```
+
+This enforces at the container level: only loopback and Tor proxy are reachable. Everything else drops.
+
+### 7f — ProxyGuard: Strip the Theater, Keep the Enforcement (LOW)
+
+`orchestrator/proxy_guard.py` is 1050+ lines. Much of it is theoretical:
+
+- `_simulate_mimicry()` — generates prompt text about browser fingerprinting, never actually executes
+- `_analyze_traffic_pattern()` — describes traffic analysis techniques, doesn't implement them  
+- Long docstrings about Tor design, DNS architecture, etc. (lines 450-550, 720-800)
+
+These are prompt decoration for the LLM, not operational code. Strip them to ~300 lines of real enforcement:
+
+| Keep (~300 lines) | Remove (~750 lines) |
+|--------------------|--------------------|
+| Tor connectivity check | Traffic analysis descriptions |
+| DNS leak detection (via Tor) | Browser fingerprinting theory |
+| IPv6 check | Network architecture essays |
+| SOCKS5 routing | Tor design documentation |
+| Credential management | Log analysis techniques |
+| `check()` orchestrator | All `_simulate_*` methods |
+
+### Files to modify:
+- `orchestrator/proxy_guard.py` — strip theater, harden enforcement, standardize env vars
+- `orchestrator/brain/anonymity_guard.py` — remove `allow_skip` passthrough
+- `orchestrator/brain/api.py` — remove `no_anonymity` from `StartRequest`
+- `orchestrator/app.py` — remove `--no-anonymity` CLI flag
+- `orchestrator/modes/autonomous.py` — remove `no_anonymity` parameter
+- `docker-compose.yml` — add `sysctls: net.ipv6.conf.all.disable_ipv6=1` to all services
+- Each Dockerfile — add ip6tables rules or container-level kill switch
+- `.env.example` — `TOR_PASSWORD` → `TOR_CONTROL_PASS`
+
+---
+
+## P8 — Security Hardening Before Real Use
 
 Do NOT run this against real targets without:
 
 - [ ] **All hardcoded credentials removed** (already fixed: sudo password, JWT_SECRET)
 - [ ] **API key rotation** — the .env has what appear to be real NVIDIA/Ollama keys. Rotate before any operational use.
-- [ ] **Tor enforcement cannot be bypassed** — remove `--no-anonymity` flag or require explicit confirmation + logging
-- [ ] **IPv6 isolation** — add `sysctl net.ipv6.conf.all.disable_ipv6=1` to Dockerfiles, add ip6tables rules
+- [ ] **Tor enforcement cannot be bypassed** — `--no-anonymity` is removed (P7a)
+- [ ] **IPv6 isolation** — `sysctl disable_ipv6=1` in Dockerfiles + ip6tables DROP (P7c)
+- [ ] **No DNS leaks** — `socks5h://` everywhere, no direct socket.create_connection (P7b)
 - [ ] **Audit trail hardened** — current audit log is a JSONL file. Make it append-only via Docker volume permissions or ship to external syslog
 - [ ] **No evidence on disk** — `brain.db`, `recon_log`, `audit/` all persist on Docker volumes. Add encryption-at-rest or shutdown wipe
+- [ ] **Container-level egress lockdown** — iptables DROP in each container, only Tor proxy allowed (P7e)
 
 ---
 
@@ -297,10 +442,11 @@ Do NOT run this against real targets without:
 | Phase | Items | Effort |
 |-------|-------|--------|
 | **1. Foundation** | P0 (phase executors), P4 (finding types), P3 (fix LLM loop in api.py) | 3-5 days |
-| **2. Containers** | P1 (Dockerfiles), P2 (fix post-ex wrappers) | 2-3 days |
-| **3. C2** | P5 (exfil), P6 (agent) | 3-4 days |
-| **4. Hardening** | P7 (security) | 1-2 days |
-| **Total** | | **~2 weeks** |
+| **2. Proxy** | P7 (anonymity killswitches, DNS, IPv6, Tor control, container lockdown) | 2-3 days |
+| **3. Containers** | P1 (Dockerfiles install tools), P2 (fix post-ex wrappers) | 2-3 days |
+| **4. C2** | P5 (exfil), P6 (agent) | 3-4 days |
+| **5. Hardening** | P8 (security checklist) | 1-2 days |
+| **Total** | | **~3 weeks** |
 
 ---
 
@@ -312,4 +458,8 @@ Do NOT run this against real targets without:
 
 3. **`orchestrator/postex/winrm_exploit.py`: wire credential flow** — it already has pywinrm, just needs credentials from the brain's finding store
 
-4. **`.env.example: add missing vars** — `TOR_CONTROL_PASS`, `FROM_ADDR`, `TELEGRAM_TOKEN`, `C2_PSK` are read by code but undocumented
+4. **`.env.example: fix `TOR_PASSWORD` → `TOR_CONTROL_PASS`** — 1 line, fixes Tor control connection for anyone following the setup guide
+
+5. **`docker-compose.yml`: add `sysctls: net.ipv6.conf.all.disable_ipv6=1` to all services** — 1 line per service, plugs IPv6 leak
+
+6. **`orchestrator/proxy_guard.py`: delete the `if self._no_anonymity: return` bypass** — 2 lines, removes the biggest OpSec hole
