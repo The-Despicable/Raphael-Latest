@@ -79,13 +79,13 @@ fi
 
 # ── 4. Kill‑switch enforcement ──
 log "\n========== 4. Kill‑Switch =========="
-KILL_SWITCH=$(echo "23532231" | sudo -S iptables -S OUTPUT 2>/dev/null | grep '\-P OUTPUT' | awk '{print $4}')
+KILL_SWITCH=$(sudo -n iptables -S OUTPUT 2>/dev/null | grep '\-P OUTPUT' | awk '{print $4}')
 if [ "$KILL_SWITCH" = "DROP" ]; then
     check "iptables OUTPUT policy is DROP" "true"
     check "Direct HTTP blocked (example.com)" "! curl -s --max-time 5 http://example.com >/dev/null 2>&1"
     check "Direct HTTPS blocked" "! curl -s --max-time 5 https://example.com >/dev/null 2>&1"
-    check "VPN server allowed (TCP 443)" "echo '23532231' | sudo -S iptables -S OUTPUT | grep -q '147.135.15.16.*dport 443.*ACCEPT'"
-    check "DNS to dnscrypt allowed" "echo '23532231' | sudo -S iptables -S OUTPUT | grep -q '127.0.2.1.*dport 53.*ACCEPT'"
+    check "VPN server allowed (TCP 443)" "sudo -n iptables -S OUTPUT | grep -q '147.135.15.16.*dport 443.*ACCEPT'"
+    check "DNS to dnscrypt allowed" "sudo -n iptables -S OUTPUT | grep -q '127.0.2.1.*dport 53.*ACCEPT'"
 else
     skip "iptables kill-switch not active (OUTPUT policy: $KILL_SWITCH)"
 fi
@@ -97,7 +97,7 @@ if [ -z "$IPV6_ADDR" ]; then
     log "  ✅ No global IPv6 address (safe)"
     ((PASS++)); ((TOTAL++))
 else
-    IPV6_BLOCKED=$(echo "23532231" | sudo -S ip6tables -S OUTPUT 2>/dev/null | grep -q 'DROP' && echo "yes" || echo "no")
+    IPV6_BLOCKED=$(sudo -n ip6tables -S OUTPUT 2>/dev/null | grep -q 'DROP' && echo "yes" || echo "no")
     if [ "$IPV6_BLOCKED" = "yes" ]; then
         log "  ✅ IPv6 traffic blocked via ip6tables"
         ((PASS++)); ((TOTAL++))
@@ -140,9 +140,10 @@ fi
 
 # ── 7. Container‑level proxy enforcement ──
 log "\n========== 7. Container Proxy Enforcement =========="
-for svc in raphael-20-recon-pipeline-1 raphael-20-cai-service-1 raphael-20-sword-1 raphael-20-cloak-service-1 raphael-20-phishing-1; do
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "$svc"; then
-        HAS_PROXY=$(docker exec "$svc" env 2>/dev/null | grep -c "TOR_PROXY")
+for svc in recon-pipeline cai-service sword cloak-service phishing; do
+    CID=$(docker compose ps -q "$svc" 2>/dev/null)
+    if [ -n "$CID" ]; then
+        HAS_PROXY=$(docker exec "$CID" env 2>/dev/null | grep -c "TOR_PROXY")
         if [ "$HAS_PROXY" -gt 0 ]; then
             log "  ✅ $svc has TOR_PROXY set"
         else

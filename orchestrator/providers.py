@@ -94,10 +94,12 @@ def track_api_call(model: str, tokens: int = 0):
 def cost_tracker_stats() -> dict:
     return dict(_cost_tracker)
 
-# Models confirmed functional — excludes known non-working models (deepseek, m3 timeout/empty)
+# Models confirmed functional — excludes known non-working (deepseek times out, m3 family unreliable)
 WORKING_ALIASES = [
-    "nemotron-super", "mistral-large", "mistral-medium",
-    "mistral-small", "kimi", "nemotron", "mistral-nemotron", "nemotron-nano-reasoning",
+    "nemotron-super", "nemotron-super15", "nemotron-super-120b",
+    "mistral-large", "mistral-medium", "mistral-small",
+    "kimi", "nemotron", "mistral-nemotron", "nemotron-nano-reasoning",
+    "glm",
     "w12", "w13", "w480b", "wormgpt", "wormgpt12", "wormgpt13", "wormgpt480b",
     "gemma4", "gemma4-think",
     "or-deepseek", "or-nemotron", "or-minimax", "or-qwen", "or-ling",

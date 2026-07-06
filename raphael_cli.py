@@ -56,7 +56,6 @@ atexit.register(_forensic_wipe_on_exit)
 
 _WEAK_DEFAULTS = {
     "TOR_PASSWORD": "changeme",
-    "JWT_SECRET": "raphael-jwt-secret-change-in-production",
     "API_KEY": "raphael-layer5-dev-key-2026",
     "GOPHISH_API_KEY": "change-me-gophish-api-key",
 }

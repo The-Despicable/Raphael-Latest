@@ -17,5 +17,5 @@ services:
 
 networks:
   raphael-net:
-    name: raphael-2.0
+    name: raphael-2.0_raphael-net
     external: true

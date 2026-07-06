@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import asyncio, json, time, hashlib, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
@@ -8,8 +9,13 @@ from orchestrator.brain.neural_memory import (
 )
 from orchestrator.brain.target_profiler import profile_target
 
-# Configurable data paths
+# Configurable data paths (falls back to docs/osmania-recon for specific files)
 DATA_DIR = os.getenv("RAPHAEL_DATA_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data"))
+DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "osmania-recon")
+
+_FILE_FALLBACKS = {
+    "recon-test-osmania-2026-06-26.txt": DOCS_DIR,
+}
 
 # Load all collected target data
 def load_osmania_data():
@@ -24,6 +30,11 @@ def load_osmania_data():
     ]
     
     for label, path in paths:
+        fname = os.path.basename(path)
+        if fname in _FILE_FALLBACKS:
+            fallback = os.path.join(_FILE_FALLBACKS[fname], fname)
+            if os.path.exists(fallback):
+                path = fallback
         try:
             with open(path) as f:
                 content = f.read()

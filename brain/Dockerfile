@@ -20,4 +20,4 @@ USER 1000:1000
 
 EXPOSE 3700
 
-CMD ["python", "-m", "uvicorn", "brain.api:app", "--host", "0.0.0.0", "--port", "3700"]
+CMD ["python", "-m", "uvicorn", "orchestrator.brain.api:app", "--host", "0.0.0.0", "--port", "3700"]

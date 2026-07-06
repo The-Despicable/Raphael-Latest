@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Re-run only gemma4 reasoning + merge steps with improved refusal detection.
 Uses existing nemotron critical + worm-12 offensive output.

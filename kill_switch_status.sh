@@ -14,7 +14,7 @@ dig @127.0.2.1 google.com +short 2>/dev/null | head -1 || echo "  Failed"
 
 echo ""
 echo "=== VPN INTERFACE ==="
-ip link show $VPN_IF 2>/dev/null || echo "  tun1 not found"
+ip link show tun1 2>/dev/null || echo "  tun1 not found"
 
 echo ""
 echo "=== TRAFFIC TESTS ==="

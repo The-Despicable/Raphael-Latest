@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Debate (glm-5.2 + worm-12 + worm-13 + worm-480b) -> RSI -> Final Plan
 gemma4 has weekly quota exceeded (429). Replaced with glm-5.2 for synthesis.
