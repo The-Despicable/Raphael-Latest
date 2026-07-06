@@ -1021,77 +1021,216 @@ These are prompt decoration for the LLM, not operational code. Strip them to ~30
 
 ---
 
-## P11 — Web UI / Dashboard (Missing Entirely)
+## P11 — CLI Dashboard (Build on Rich)
 
-There is zero visibility into what the system is doing without SSHing in and reading JSON files. No dashboard, no real-time monitoring, no visual engagement map.
+The existing `raphael_cli.py` already has Rich integration (tables, panels, markdown, layouts, `Live` rendering). The CLI is the primary interface — double down on it rather than building a separate web UI.
 
-### Create `ui/` at project root
+### 11a — Live Engagement Dashboard
 
-```
-ui/
-├── Dockerfile          # Nginx + built React app
-├── src/
-│   ├── App.tsx
-│   ├── pages/
-│   │   ├── Dashboard.tsx       # Live engagement status, active agents, finding count
-│   │   ├── Target.tsx          # Target detail: ports, vulns, exploit chain graph
-│   │   ├── Graph.tsx           # Network topology visualization (vis.js)
-│   │   ├── Timeline.tsx        # Phase execution timeline
-│   │   ├── Agent.tsx           # Deployed agent management
-│   │   └── Settings.tsx        # API key management, model config
-│   ├── components/
-│   │   ├── PhaseCard.tsx       # Per-phase result card
-│   │   ├── FindingTable.tsx    # Sorted/filterable finding table
-│   │   ├── TopologyGraph.tsx   # Interactive network graph
-│   │   └── AgentList.tsx       # Connected agents
-│   └── api/
-│       └── client.ts           # Fetch wrapper for brain API
-└── package.json
-```
-
-### Backend API endpoints needed on brain:
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /v1/ui/engagements` | List all engagements with status |
-| `GET /v1/ui/engagement/{id}` | Full engagement detail + findings |
-| `GET /v1/ui/findings?target=X` | All findings for a target |
-| `GET /v1/ui/topology/{target}` | Network graph data (hosts, ports, connections) |
-| `GET /v1/ui/agents` | Active C2 agents |
-| `WS /v1/ui/events` | Real-time event stream (new finding, phase complete, agent check-in) |
-
-### Real-time event stream
+Replace the current `raphael_cli.py` REPL with a `screen`-style live dashboard using `rich.live.Live`:
 
 ```python
-# In orchestrator/brain/api.py
-connected_clients: set[WebSocket] = set()
+# raphael_cli.py — Dashboard mode (/dashboard)
+from rich.layout import Layout
+from rich.live import Live
+from rich.table import Table
+from rich.panel import Panel
+from rich import box
 
-async def broadcast(event: dict):
-    dead = set()
-    for ws in connected_clients:
-        try:
-            await ws.send_json(event)
-        except:
-            dead.add(ws)
-    connected_clients -= dead
+def make_dashboard() -> Layout:
+    layout = Layout()
+    layout.split_column(
+        Layout(name="header", size=3),
+        Layout(name="body"),
+        Layout(name="footer", size=3),
+    )
+    layout["body"].split_row(
+        Layout(name="engagements"),
+        Layout(name="findings"),
+        Layout(name="agents"),
+    )
+    return layout
 
-@app.websocket("/v1/ui/events")
-async def ui_events(ws: WebSocket):
-    await ws.accept()
-    connected_clients.add(ws)
-    try:
-        while True:
-            await ws.receive_text()  # keepalive pong
-    except:
-        connected_clients.discard(ws)
+def render_engagements(data: dict) -> Table:
+    table = Table(title="Active Engagements", box=box.ROUNDED)
+    table.add_column("Target", style="cyan")
+    table.add_column("Phase", style="yellow")
+    table.add_column("Status", style="green")
+    table.add_column("Since", style="white")
+    for eng in data.get("active", []):
+        table.add_row(eng["target"], eng["phase"], eng["status"], eng["elapsed"])
+    return table
+
+def render_findings(data: dict) -> Panel:
+    # Severity-colored finding list, top 10
+    ...
+
+def render_agents(data: dict) -> Table:
+    table = Table(title="C2 Agents", box=box.ROUNDED)
+    table.add_column("Agent ID", style="cyan")
+    table.add_column("Target", style="white")
+    table.add_column("Last Beat", style="yellow")
+    table.add_column("Tasks", style="blue")
+    for agent in data.get("agents", []):
+        table.add_row(agent["id"], agent["target"], agent["last_seen"], str(agent["pending_tasks"]))
+    return table
 ```
 
-Then instrument every phase executor to call `await broadcast({"type": "finding", "data": finding})` when a result comes in.
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Raphael 2.0 — Autonomous Security Platform    Mode: DASHBOARD │
+├──────────────────────┬───────────────────────┬────────────────┤
+│  Active Engagements  │  Latest Findings      │  C2 Agents     │
+│  ┌────────────────┐  │  ┌─────────────────┐  │ ┌──────────────┐│
+│  │ vulnu.lab  ████ │  │  🔴 CVE-2024-... │  │ │ agent-01     ││
+│  │   recon: done   │  │  🟡 XSS in /login │  │ │  vulnu.lab   ││
+│  │   scan: done    │  │  🟢 Port 80 open  │  │ │  30s ago     ││
+│  │   exploit: ██   │  │  🟢 Port 22 open  │  │ │  2 pending   ││
+│  │ northbridge.lab │  │  🔴 SQLi /api     │  │ │ agent-02     ││
+│  │   recon: ████   │  │  🟡 LFI in /file  │  │ │  northbridge ││
+│  └────────────────┘  │  └─────────────────┘  │ │  2m ago      ││
+│                      │                       │ │  0 pending   ││
+├──────────────────────┴───────────────────────┴────────────────┤
+│  >  █                                                         │
+└──────────────────────────────────────────────────────────────┘
+```
 
-### Files to create:
-- `ui/` — entire React frontend
-- `orchestrator/brain/api.py` — add `GET /v1/ui/*` endpoints + WebSocket event stream
-- `orchestrator/brain/events.py` — event bus for broadcasting state changes
+### 11b — CLI Commands to Add
+
+| Command | What it does | Status |
+|---------|-------------|--------|
+| `/dashboard` | Live-refreshing TUI dashboard | New |
+| `/engage <target> [--phases p1,p2]` | Start engagement, stream results to terminal | Upgrade existing |
+| `/findings <target>` | Show structured findings table for a target | New |
+| `/topology <target>` | ASCII network graph (hosts → ports → vulns) | New |
+| `/agents` | List C2 agents + status | Wrap existing API |
+| `/agent <id>` | Agent detail: tasks, results, files | New |
+| `/session <eid>` | Resume/view a specific engagement session | New |
+| `/queue` | Show multi-target queue (P12) | New |
+| `/providers` | Show provider status + circuit breaker states (P14) | New |
+| `/report <target>` | Generate and print structured report | New |
+| `/export <target> json|md` | Export findings as JSON or markdown | New |
+
+### 11c — Session Resume (Critical for Long-Running Engagements)
+
+Engagements can run for hours. If the CLI crashes or the operator disconnects, they should be able to reattach.
+
+```python
+# orchestrator/brain/session_store.py
+class SessionStore:
+    """Stores in-progress engagement state for resume."""
+    def __init__(self, db_path: str = "sessions.db"):
+        self.conn = sqlite3.connect(db_path)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id TEXT PRIMARY KEY,
+                target TEXT,
+                phases TEXT,        -- json list
+                current_phase TEXT,
+                results TEXT,       -- json dict of completed phases
+                state TEXT,         -- json blob of brain state
+                created_at REAL,
+                updated_at REAL
+            )
+        """)
+
+    def save(self, session_id: str, data: dict):
+        self.conn.execute(
+            """INSERT OR REPLACE INTO sessions
+               (session_id, target, phases, current_phase, results, state, updated_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (session_id, data["target"], json.dumps(data["phases"]),
+             data.get("current_phase"), json.dumps(data.get("results", {})),
+             json.dumps(data.get("state", {})), time.time())
+        )
+        self.conn.commit()
+
+    def load(self, session_id: str) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "target": row["target"],
+            "phases": json.loads(row["phases"]),
+            "current_phase": row["current_phase"],
+            "results": json.loads(row["results"]),
+            "state": json.loads(row["state"]),
+        }
+
+    def list_active(self) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT session_id, target, current_phase, updated_at FROM sessions \
+             WHERE updated_at > ?", (time.time() - 86400,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+```
+
+### 11d — ASCII Topology Map
+
+For the `/topology <target>` command, generate a network graph using Unicode box-drawing:
+
+```python
+def render_topology(findings: list[Finding]) -> str:
+    lines = []
+    hosts = group_by(findings, lambda f: f.data.host if isinstance(f.data, Port) else "unknown")
+    for host, host_findings in hosts.items():
+        lines.append(f"┌─ {host}")
+        ports = [f for f in host_findings if isinstance(f.data, Port)]
+        vulns = [f for f in host_findings if isinstance(f.data, Vulnerability)]
+        for p in sorted(ports, key=lambda f: f.data.number):
+            flag = "🟢" if p.data.service else "🔴"
+            lines.append(f"│  {flag} Port {p.data.number}/{p.data.protocol}  {p.data.service}")
+            for v in vulns:
+                if v.data.endpoint and str(p.data.number) in v.data.endpoint:
+                    sev = {"critical": "🔴", "high": "🟡", "medium": "🟠", "low": "🔵"}
+                    lines.append(f"│    {sev.get(v.data.severity, '⚪')} {v.data.description[:60]}")
+        lines.append("└─")
+    return "\n".join(lines)
+```
+
+### 11e — Real-Time Event Streaming (Backend)
+
+The brain needs an event bus that both the CLI dashboard and WebSocket clients can subscribe to:
+
+```python
+# orchestrator/brain/events.py
+import asyncio
+from typing import Callable
+
+class EventBus:
+    def __init__(self):
+        self._subscribers: list[Callable] = []
+
+    def subscribe(self, cb: Callable):
+        self._subscribers.append(cb)
+
+    async def emit(self, event: str, data: dict):
+        for cb in self._subscribers:
+            try:
+                await cb({"type": event, "data": data, "ts": time.time()})
+            except Exception:
+                pass
+
+    # Event types:
+    # "phase_start"   {"engagement_id", "phase", "target"}
+    # "phase_done"    {"engagement_id", "phase", "success", "findings": [...]}
+    # "finding"       {"engagement_id", "finding": Finding}
+    # "agent_beat"    {"agent_id", "status"}
+    # "error"         {"engagement_id", "phase", "error"}
+    # "provider_down" {"provider": "nvidia", "circuit": "open"}
+
+event_bus = EventBus()
+```
+
+The CLI dashboard polls `GET /v1/cli/status` (returns all active state at once — simpler than WebSocket for a terminal) and re-renders every 2 seconds.
+
+### Files to create/modify:
+- `raphael_cli.py` — add dashboard mode + all new commands (11a–11d)
+- `orchestrator/brain/events.py` — EventBus class (11e)
+- `orchestrator/brain/api.py` — add `GET /v1/cli/status` aggregate endpoint
+- `orchestrator/brain/session_store.py` — session persistence for resume (11c)
 
 ---
 
@@ -1424,7 +1563,7 @@ When offline:
 | **3. Containers** | P1 (Dockerfiles), P2 (fix post-ex) | 2-3 days |
 | **4. C2 + Agent** | P5 (wire C2 + crypto), P6 (implant) | 5-7 days |
 | **5. Multi-target + Resilience** | P12 (orchestrator), P14 (circuit breakers), P16 (offline) | 3-4 days |
-| **6. Dashboard** | P11 (UI + event stream) | 4-5 days |
+| **6. CLI Dashboard** | P11 (live TUI, session resume, topology, event bus) | 3-4 days |
 | **7. Security** | P8 (hardening), P13 (secrets), P15 (auth) | 2-3 days |
 | **8. Validation** | P9 (kill chain test), P10 (DB maintenance) | 3-4 days |
 | **Total** | | **~6-8 weeks** |
