@@ -3,45 +3,34 @@ import asyncio, json, time, hashlib, os, sys
 sys.path.insert(0, "/raphael")
 sys.path.insert(1, os.path.dirname(__file__))
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional, List
 import uvicorn
 
-from brain.adaptive_brain import AdaptiveBrain, PSOModelSelector, pick_model, get_analytics, record_chain_step
+from brain.adaptive_brain import AdaptiveBrain
 from brain.neural_memory import NeuralMemory, retrieve_episodic, store_episodic, store_target_profile, get_target_profile
 from brain.target_profiler import TargetProfiler
-from brain.anonymity_guard import AnonymityGuard
-from orchestrator.providers import call_model, ALL_ALIASES as ALIASES
+from orchestrator.providers import call_model
+from brain.phases import PHASE_EXECUTORS, Finding, PhaseResult
 
 app = FastAPI(title="Raphael Autonomous Brain", version="2.0.0")
 brain = AdaptiveBrain()
 memory = NeuralMemory()
 profiler = TargetProfiler()
 
-PHASE_CONTEXT_MAP = {
-    "recon": "recon", "scan": "sqli", "exploit": "rce",
-    "postex": "rce", "exfil": "phishing", "phish": "phishing",
-}
 PHASES = ["recon", "scan", "exploit", "postex", "exfil", "phish"]
-PHASE_PROMPTS = {
-    "recon": "Perform deep reconnaissance on the target. Identify subdomains, DNS records, technologies, open ports.",
-    "scan": "Perform vulnerability scanning. Identify CVEs, misconfigurations, weak services.",
-    "exploit": "Formulate exploitation strategies based on discovered vulnerabilities.",
-    "postex": "Post-exploitation: lateral movement, privilege escalation, persistence.",
-    "exfil": "Data exfiltration planning: DNS tunnel, HTTP, SMTP methods.",
-    "phish": "Social engineering and phishing campaign design.",
-}
 
 
 class StartRequest(BaseModel):
     target: str
     phases: Optional[List[str]] = None
-    rounds: Optional[int] = 1
-    no_anonymity: Optional[bool] = False
-    use_pso: Optional[bool] = False
-    max_tokens: Optional[int] = 4096
-    temperature: Optional[float] = 0.85
+    use_llm_strategist: Optional[bool] = True
+
+
+class EngageRequest(BaseModel):
+    target: str
+    phases: Optional[List[str]] = None
 
 
 class ChainRequest(BaseModel):
@@ -94,26 +83,16 @@ async def add_semantic(req: StoreSemanticRequest):
 async def start_autonomous(req: StartRequest):
     target = req.target
     phases = req.phases or PHASES
-    no_anonymity = req.no_anonymity
-    use_pso = req.use_pso
+    use_llm = req.use_llm_strategist
 
     results = {
         "target": target,
         "phases": {},
         "analytics": {},
-        "anonymity": {},
         "profile": {},
         "timestamp": time.time(),
         "chain_hash": hashlib.sha256(f"{target}:{time.time()}".encode()).hexdigest()[:12],
     }
-
-    guard = AnonymityGuard(require_tor=not no_anonymity, rotation_interval=300)
-    try:
-        anon_status = guard.enforce(allow_skip=no_anonymity)
-        results["anonymity"] = anon_status
-    except RuntimeError as e:
-        results["anonymity"] = {"error": str(e), "tor_active": False}
-        return results
 
     try:
         profile = profiler.profile(target)
@@ -122,44 +101,54 @@ async def start_autonomous(req: StartRequest):
     except Exception as e:
         results["profile"] = {"error": str(e)}
 
-    candidates = list(ALIASES.keys())
-    pso = PSOModelSelector(n_models=len(candidates)) if use_pso else None
-    prev_outputs = {}
+    all_findings: list[Finding] = []
 
     for phase_name in phases:
-        context = PHASE_CONTEXT_MAP.get(phase_name, "recon")
-
-        if use_pso and pso:
-            model_alias = pso.select(context, candidates, iterations=20)
-        else:
-            model_alias = pick_model(context, candidates)
-
-        phase_prompt = PHASE_PROMPTS.get(phase_name, f"Analyze for {phase_name}.")
-        msgs = [{"role": "user", "content": f"[AUTONOMOUS - {phase_name.upper()}]\nTarget: {target}\n"}]
-        if prev_outputs:
-            summary = "\n".join(f"- {k}: {v[:500]}" for k, v in prev_outputs.items())
-            msgs[0]["content"] += f"\nPrevious phase results:\n{summary}\n\n"
-        msgs[0]["content"] += f"\n{phase_prompt}"
+        executor = PHASE_EXECUTORS.get(phase_name)
+        if not executor:
+            results["phases"][phase_name] = {
+                "success": False, "error": f"No executor for phase: {phase_name}",
+            }
+            continue
 
         t0 = time.time()
-        error = False
         try:
-            output = await call_model(model_alias, msgs, max_tokens=req.max_tokens, temperature=req.temperature)
+            phase_result: PhaseResult = await executor(target, all_findings)
         except Exception as e:
-            output = f"ERROR: {e}"
-            error = True
-        latency = time.time() - t0
+            phase_result = PhaseResult(
+                phase=phase_name, success=False,
+                error=str(e), latency=time.time() - t0,
+            )
 
-        success = not error and len(output.strip()) > 20
-        brain.update_stats(model_alias, context, success, latency)
-        record_chain_step(results["chain_hash"], len(results["phases"]), model_alias, context, 1.0 if success else 0.0, latency)
+        all_findings.extend(phase_result.findings)
 
-        store_episodic(phase_name, target, model_alias, context, msgs[0]["content"], output[:2000], success, 1.0 if success else 0.0, latency)
-        prev_outputs[phase_name] = output[:2000]
+        # LLM strategist: analyzes findings and suggests next-phase strategy
+        strategist_output = ""
+        if use_llm and phase_result.success and phase_result.findings:
+            try:
+                finding_summary = "\n".join(
+                    f"- [{f.severity.value}] {f.type}: {f.description[:200]}"
+                    for f in phase_result.findings[:10]
+                )
+                strat_msgs = [{"role": "user", "content": (
+                    f"[STRATEGIST — {phase_name.upper()} RESULTS]\n"
+                    f"Target: {target}\n\n"
+                    f"Findings:\n{finding_summary}\n\n"
+                    f"The next phase is one of: {[p for p in phases if p != phase_name]}\n"
+                    "Based on these results, what should the next phase focus on?\n"
+                    "Be specific: which ports, endpoints, or vulnerabilities to prioritize."
+                )}]
+                strategist_output = await call_model("auto", strat_msgs, max_tokens=1024, temperature=0.5)
+            except Exception:
+                pass
 
         results["phases"][phase_name] = {
-            "model": model_alias, "context": context, "success": success,
-            "latency": round(latency, 2), "output": output,
+            "success": phase_result.success,
+            "findings": [f.to_dict() for f in phase_result.findings],
+            "summary": phase_result.summary,
+            "latency": round(phase_result.latency, 2),
+            "error": phase_result.error,
+            "strategist": strategist_output[:1000] if strategist_output else "",
         }
 
     results["analytics"] = brain.get_state()
@@ -167,16 +156,39 @@ async def start_autonomous(req: StartRequest):
 
 
 @app.post("/v1/engage/start")
-async def start_engagement(req: StartRequest):
-    from brain.autonomous import run_autonomous_engagement
+async def start_engagement(req: EngageRequest):
     target = req.target
     phases = req.phases or ["recon", "scan", "exploit", "postex"]
-    result = await run_autonomous_engagement(
-        target, phases,
-        api_key=os.getenv("API_KEY", ""),
-        enforce_anonymity=not req.no_anonymity,
-    )
-    return result
+
+    results = {
+        "target": target,
+        "phases": {},
+        "timestamp": time.time(),
+        "chain_hash": hashlib.sha256(f"{target}:{time.time()}".encode()).hexdigest()[:12],
+    }
+    all_findings: list[Finding] = []
+
+    for phase_name in phases:
+        executor = PHASE_EXECUTORS.get(phase_name)
+        if not executor:
+            results["phases"][phase_name] = {"success": False, "error": f"No executor: {phase_name}"}
+            continue
+
+        t0 = time.time()
+        try:
+            phase_result: PhaseResult = await executor(target, all_findings)
+        except Exception as e:
+            phase_result = PhaseResult(phase=phase_name, success=False, error=str(e), latency=time.time() - t0)
+
+        all_findings.extend(phase_result.findings)
+        results["phases"][phase_name] = {
+            "success": phase_result.success,
+            "findings": [f.to_dict() for f in phase_result.findings],
+            "summary": phase_result.summary,
+            "latency": round(phase_result.latency, 2),
+        }
+
+    return results
 
 
 @app.get("/v1/brain/state")

@@ -6,7 +6,23 @@
 
 ## P0 — Wire the Autonomous Loop to Real Tooling
 
-**The single biggest gap.** `/v1/autonomous/start` (`orchestrator/brain/api.py:93-166`) runs a loop that calls `call_model()` for each phase and stores the LLM output. It never invokes a real scanner or exploit. The result is plausible-sounding text, not actual compromise.
+**✅ DONE — `orchestrator/brain/phases/` created, `orchestrator/brain/api.py` rewired.**
+
+**The single biggest gap.** `/v1/autonomous/start` (`orchestrator/brain/api.py:93-166`) used to run a loop that calls `call_model()` for each phase and stores the LLM output. It never invoked a real scanner or exploit. The result was plausible-sounding text, not actual compromise.
+
+**What changed:**
+- Created `orchestrator/brain/phases/` with 6 phase executors (recon, scan, exploit, postex, exfil, phish)
+- Each executor calls real tools: `NmapScanner` (pure-Python TCP connect), `NucleiScanner` (binary), `SqlmapWrapper` (binary), `XSSScanner` (HTTP), `SSRFScanner` (HTTP)
+- Phase loop in `api.py` now calls executors directly instead of `call_model()`
+- LLM demoted to strategist only: analyzes findings after each phase, suggests next-phase focus
+- Findings are structured `Finding` dataclass objects, not LLM markdown text
+- Removed dead fields from API: `no_anonymity`, `use_pso`, `rounds`, `max_tokens`, `temperature`
+- Removed unused imports (`PSOModelSelector`, `pick_model`, `AnonymityGuard`, `ALL_ALIASES`)
+
+**Still needed (coming in later phases):**
+- Docker image fixes so nuclei/sqlmap binaries exist at runtime (P1)
+- Post-ex wrappers that don't fall back to simulation (P2)
+- LLM analysis of findings for next-phase intel (half-done — strategist prompt exists) (P3)
 
 ### Fix: Replace `call_model()` with real phase executors
 
@@ -184,44 +200,48 @@ The LLM's role should be:
 
 ## P4 — Structured Finding Types + Memory Integration
 
+**✅ DONE (core types) — `orchestrator/brain/phases/models.py` contains `Finding` and `PhaseResult` dataclasses.**
+
 The brain's `NeuralMemory` stores episodic events as blobs. For the system to learn across engagements, findings need a structured schema.
 
-### Create `orchestrator/brain/finding.py`:
+**Remaining:**
+- Port/Credential subtypes not yet created (can extend `Finding` with a `kind` field)
+- Memory integration: findings should auto-store to episodic memory instead of just returning in API response
+- Cross-engagement learning: query past findings by target, IP, CVE pattern
+
+### Core types (created in `orchestrator/brain/phases/models.py`):
+
+The `Finding` dataclass uses a flat schema with optional fields rather than type unions:
 
 ```python
 @dataclass
-class Port:
-    number: int
-    protocol: str
-    service: str
-    banner: str | None
-
-@dataclass
-class Vulnerability:
-    cve_id: str | None
-    scanner: str  # "nuclei" | "sqlmap" | "xss_scanner" | etc.
-    endpoint: str
-    severity: str  # "critical" | "high" | "medium" | "low"
-    description: str
-    proof: str  # evidence/raw output
-    exploited: bool
-    payload_used: str | None
-
-@dataclass
-class Credential:
-    service: str
-    username: str
-    password: str | None
-    hash: str | None
-    source: str  # "bruteforce" | "sqli" | "default_creds" | etc.
-
-@dataclass
 class Finding:
-    type: str  # "port" | "vuln" | "cred" | "host"
-    data: Port | Vulnerability | Credential | dict
-    timestamp: float
-    source_phase: str
+    phase: str
+    type: str              # "open_port" | "vulnerability" | "sql_injection" | ...
+    target: str
+    host: str | None
+    port: int | None
+    protocol: str | None
+    service: str | None
+    severity: Severity     # enum: critical / high / medium / low / info
+    description: str
+    evidence: str
+    cve: str | None
+    payload: str | None
+    raw: dict              # original tool output as-is
+
+@dataclass
+class PhaseResult:
+    phase: str
+    success: bool
+    findings: list[Finding]
+    summary: str
+    raw_output: str
+    latency: float
+    error: str | None
 ```
+
+**Future:** Add `Credential` subtype or extend `Finding` with a `kind` discriminator for structured credential handling.
 
 ### Modify `NeuralMemory` in `orchestrator/brain/neural_memory.py`:
 
