@@ -19,62 +19,9 @@
 - Removed dead fields from API: `no_anonymity`, `use_pso`, `rounds`, `max_tokens`, `temperature`
 - Removed unused imports (`PSOModelSelector`, `pick_model`, `AnonymityGuard`, `ALL_ALIASES`)
 
-**Still needed (coming in later phases):**
-- Docker image fixes so nuclei/sqlmap binaries exist at runtime (P1)
-- Post-ex wrappers that don't fall back to simulation (P2)
-- LLM analysis of findings for next-phase intel (half-done — strategist prompt exists) (P3)
-
-### Fix: Replace `call_model()` with real phase executors
-
-**`orchestrator/brain/api.py` — the phase loop (lines 129-163):**
-
-```
-for phase_name in phases:
-    if phase_name == "recon":
-        result = await run_recon(target)
-    elif phase_name == "scan":
-        result = await run_scan(target, open_ports)
-    elif phase_name == "exploit":
-        result = await run_exploit(target, vulns)
-    ...
-```
-
-Each phase executor should:
-1. Call the real tool wrapper (nmap, sqlmap, etc.)
-2. Parse structured output (open ports, CVEs, credentials)
-3. Store findings in memory for next phases
-4. Let the LLM *analyze* results and suggest next steps — but never be the executor itself
-
-### Phase Executors to create — `orchestrator/brain/phases/`
-
-| File | What it does |
-|------|-------------|
-| `phases/__init__.py` | Phase registry + routing |
-| `phases/recon.py` | Calls `nmap_scanner.scan()`, `whatweb_scanner.detect()`, stores open ports + tech stack |
-| `phases/scan.py` | Calls `nuclei_scanner.scan()` on discovered ports, stores CVEs |
-| `phases/exploit.py` | Calls `sqlmap_wrapper.exploit()` on SQL endpoints, `xss_scanner.scan()`, `ssrf_scanner.scan()` |
-| `phases/postex.py` | Calls `winrm_exploit.py`, `bloodhound_integration.py`, attempts lateral movement |
-| `phases/exfil.py` | Placeholder — needs real data exfiltation (see P2) |
-| `phases/phish.py` | Calls GoPhish API or SMTP sender directly |
-
-Each executor returns structured `PhaseResult`:
-
-```python
-@dataclass
-class PhaseResult:
-    phase: str
-    success: bool
-    findings: list[Finding]
-    summary: str
-    raw_output: str
-    latency: float
-```
-
-The LLM then gets the structured findings as context for the *next* phase's strategy — it directs, it doesn't execute.
-
-### Files to modify:
-- `orchestrator/brain/api.py` — replace phase loop (lines 129-163)
-- `orchestrator/brain/autonomous.py` — `execute_phase()` calls REST microservices instead of doing work locally. Either keep this pattern and fix microservices, or bypass them and call wrappers directly.
+**Remaining:**
+- P1 — Dockerfile installs so nuclei/sqlmap are present in containers at runtime
+- P9 — Kill chain validation tests against vulnu-lab
 
 ---
 
@@ -128,7 +75,9 @@ Needs pywinrm, bloodhound, and a real agent implant (not Pupy's broken setup).
 
 ## P2 — Replace Simulated Post-Exploitation with Real Implants
 
-4 of 6 post-ex wrappers return `"status": "simulated"`.
+**✅ DONE — `orchestrator/brain/phases/postex.py` rewired with C2 + AD toolkit. No more simulation fallback.**
+
+4 of 6 post-ex wrappers used to return `"status": "simulated"`.
 
 ### `orchestrator/postex/pupy_c2.py`
 
@@ -167,7 +116,9 @@ depends_on:
 
 ## P3 — Fix the LLM-as-Executor Pattern Globally
 
-The system uses LLM output as the attack itself in multiple places:
+**✅ DONE — `orchestrator/brain/api.py` phase loop replaced `call_model()` with direct executor calls. LLM demoted to strategist only (analyzes findings, suggests next-phase focus).**
+
+The system used to use LLM output as the attack itself in multiple places:
 
 | File | Lines | Problem |
 |------|-------|---------|
@@ -252,9 +203,25 @@ class PhaseResult:
 
 ---
 
-## P5 — C2 + Exfiltration (Currently Missing)
+## P5 — C2 + Exfiltration
 
-There is no working C2 channel or data exfiltration path. The existing `orchestrator/c2_channel.py` is minimal. This section designs a complete C2 protocol.
+**✅ DONE (core) — `orchestrator/c2/` created with Sliver gRPC backend + noop fallback. `orchestrator/pivot/` for SOCKS proxy chain management.**
+
+The existing `orchestrator/c2_channel.py` was a stub. The new C2 abstraction layer provides:
+
+### What was built:
+- `orchestrator/c2/models.py` — `C2Session`, `ImplantConfig`, `TaskResult` dataclasses
+- `orchestrator/c2/sliver_backend.py` — Sliver gRPC client: session listing, implant generation, command execution, SOCKS proxy start/stop
+- `orchestrator/c2/noop_backend.py` — Graceful fallback when Sliver unavailable
+- `orchestrator/c2/manager.py` — `C2Manager` singleton with auto-backend selection, session cache, proxy map
+- `orchestrator/pivot/manager.py` — `PivotManager` tracks SOCKS hops through compromised hosts, provides `env_for_target()` for routing scanners through the proxy chain
+- `orchestrator/ad/toolkit.py` — Impacket wrappers (secretsdump, wmiexec, psexec, GetNPUsers, GetUserSPNs) with auto-discovery
+- Brain API endpoints: `GET /v1/c2/sessions`, `POST /v1/c2/{id}/exec`, `POST /v1/c2/{id}/socks`, `GET /v1/pivot/status`, `GET /v1/ad/status`
+
+### Not yet built (carried from original spec):
+- Custom C2 server (agents use Sliver instead)
+- DNS/SMTP exfil modules (moved to agent implant scope)
+- Sliver server docker-compose service (pre-req for C2 to work outside lab)
 
 ### 5a — C2 Protocol Spec
 
@@ -529,9 +496,13 @@ class SMTPExfiltrator:
 
 ---
 
-## P6 — Container Runtime: Real Agent, Not Pupy
+## P6 — Container Runtime: Real Agent
+
+**✅ DONE (architecture) — C2 abstraction supports Sliver implants natively. Python agent spec below remains as reference for standalone agent builds.**
 
 Create a deployable Python implant (`agent/` at project root) that connects to the C2 server. This replaces the broken Pupy integration.
+
+**Note:** The Sliver backend (`orchestrator/c2/sliver_backend.py`) handles implant generation, delivery, and management. The custom agent spec below is only needed if Sliver isn't available.
 
 ### 6a — Agent Architecture
 
@@ -1574,19 +1545,33 @@ When offline:
 
 ---
 
+## Remaining for Insane-Tier / Full Ops Readiness
+
+These close the gap between "working tool" and "HTB Insane / real-target capable":
+
+| # | Item | Why | Pre-req |
+|---|------|-----|---------|
+| R1 | **Sliver server docker-compose service** | C2 backend is coded but Sliver server isn't deployed. Without it, `orchestrator/c2/sliver_backend.py` falls back to noop. | Docker |
+| R2 | **Hashcat + rockyou integration** | Kerberoast and AS-REP hashes are collected but never cracked. Need auto-feed hashes → wordlist → crack → store cleartext. | R1 |
+| R3 | **Certipy wrapper** | AD CS abuse (ESC1-ESC8) is the fastest path to DA on most modern domains. BloodHound detects vulnerable templates but Certipy isn't called. | R1 |
+| R4 | **Multi-hop SOCKS chaining** | `PivotManager` supports one proxy hop. HTB Insane often needs 3+ pivots. Need chain: A → B → C with auto-routing. | R1 |
+| R5 | **Brain AD planner** | Currently findings are listed. Brain needs to analyze BloodHound output and auto-select: "delegation abuse → DCSync → golden ticket" rather than just displaying paths. | R2, R3 |
+| R6 | **Crackstation/keyring module** | Central store for cracked credentials, auto-try against discovered services (WinRM, SMB, SSH, RDP). | R2 |
+| R7 | **Evasion modules** | AMSI patching, ETW event suppression, PowerShell downgrade, log wiping. Required for targets running Defender/SentinelOne. | R1 |
+
 ## Implementation Order (Updated)
 
-| Phase | Items | Effort |
-|-------|-------|--------|
-| **1. Foundation** | P0 (phase executors), P4 (finding types), P3 (fix LLM loop) | 3-5 days |
-| **2. Proxy** | P7 (anonymity overhaul) | 2-3 days |
-| **3. Containers** | P1 (Dockerfiles), P2 (fix post-ex) | 2-3 days |
-| **4. C2 + Agent** | P5 (wire C2 + crypto), P6 (implant) | 5-7 days |
-| **5. Multi-target + Resilience** | P12 (orchestrator), P14 (circuit breakers), P16 (offline) | 3-4 days |
-| **6. CLI Dashboard** | P11 (live TUI, session resume, topology, event bus) | 3-4 days |
-| **7. Security** | P8 (hardening), P13 (secrets), P15 (auth) | 2-3 days |
-| **8. Validation** | P9 (kill chain test), P10 (DB maintenance) | 3-4 days |
-| **Total** | | **~6-8 weeks** |
+| Phase | Items | Effort | Status |
+|-------|-------|--------|--------|
+| **1. Foundation** | P0 (phase executors), P4 (finding types), P3 (fix LLM loop) | 3-5 days | **DONE** |
+| **2. C2 + AD** | P5 (C2 abstraction), P6 (agent architecture), P2 (post-ex), lateral/credential phases | 5-7 days | **DONE** |
+| **3. Proxy** | P7 (anonymity overhaul — DNS leaks, IPv6, no-anonymity bypass, Tor kill switch) | 2-3 days | Pending |
+| **4. Containers** | P1 (Dockerfiles: install nuclei, sqlmap, whatweb, subfinder) | 1 day | Pending |
+| **5. Insane-Tier** | R1-R7 (Sliver compose, hashcat, Certipy, multi-hop SOCKS, brain planner, keyring, evasion) | 2-3 weeks | Pending |
+| **6. Hardening** | P8 (security checklist), P10 (DB maintenance), P13 (secrets), P15 (auth) | 2-3 days | Pending |
+| **7. Validation** | P9 (kill chain test against vulnu-lab), P12 (multi-target), P14 (circuit breakers), P16 (offline) | 3-4 days | Pending |
+| **8. CLI Dashboard** | P11 (live TUI, session resume, topology map, event bus) | 3-4 days | Pending |
+| **Total** | | **~5-7 weeks** | |
 
 Do NOT run this against real targets without:
 
@@ -1594,39 +1579,7 @@ Do NOT run this against real targets without:
 - [ ] **API key rotation** — the .env has what appear to be real NVIDIA/Ollama keys. Rotate before any operational use.
 - [ ] **Tor enforcement cannot be bypassed** — `--no-anonymity` is removed (P7a)
 - [ ] **IPv6 isolation** — `sysctl disable_ipv6=1` in Dockerfiles + ip6tables DROP (P7c)
-- [ ] **No DNS leaks** — `socks5h://` everywhere, no direct socket.create_connection (P7b)
+- [ ] **No DNS leaks** — `socks5h://` everywhere, no direct `socket.create_connection` (P7b)
 - [ ] **Audit trail hardened** — current audit log is a JSONL file. Make it append-only via Docker volume permissions or ship to external syslog
 - [ ] **No evidence on disk** — `brain.db`, `recon_log`, `audit/` all persist on Docker volumes. Add encryption-at-rest or shutdown wipe
 - [ ] **Container-level egress lockdown** — iptables DROP in each container, only Tor proxy allowed (P7e)
-
----
-
-## Implementation Order
-
-| Phase | Items | Effort |
-|-------|-------|--------|
-| **1. Foundation** | P0 (phase executors), P4 (finding types), P3 (fix LLM loop in api.py) | 3-5 days |
-| **2. Proxy** | P7 (anonymity killswitches, DNS, IPv6, Tor control, container lockdown) | 2-3 days |
-| **3. Containers** | P1 (Dockerfiles install tools), P2 (fix post-ex wrappers) | 2-3 days |
-| **4. C2 + Agent** | P5 (C2 protocol + crypto + exfil), P6 (implant + stealth + lateral) | 5-7 days |
-| **5. Validation** | P9 (test-range, kill chain test, CI, metrics) | 3-4 days |
-| **6. Hardening** | P8 (security checklist), P10 (brain DB maintenance) | 1-2 days |
-| **Total** | | **~4 weeks** |
-
----
-
-## Quick Wins (do these first, <2 hours each)
-
-1. **`orchestrator/brain/api.py`: change the recon phase** to call `nmap_scanner.scan(target)` instead of `call_model()` — immediately switches from "LLM writes about ports" to "real port scan feeds next phase"
-
-2. **`recon-pipeline/Dockerfile`: add `apt install -y whatweb subfinder`** — 1 line, immediately makes tech detection work in containers
-
-3. **`orchestrator/postex/winrm_exploit.py`: wire credential flow** — it already has pywinrm, just needs credentials from the brain's finding store
-
-4. **`.env.example: fix `TOR_PASSWORD` → `TOR_CONTROL_PASS`** — 1 line, fixes Tor control connection for anyone following the setup guide
-
-5. **`docker-compose.yml`: add `sysctls: net.ipv6.conf.all.disable_ipv6=1` to all services** — 1 line per service, plugs IPv6 leak
-
-6. **`orchestrator/proxy_guard.py`: delete the `if self._no_anonymity: return` bypass** — 2 lines, removes the biggest OpSec hole
-
-7. **Run `VACUUM` on `orchestrator/data/brain.db`** — reclaims ~75MB from 71K free pages, prevents perf degradation
