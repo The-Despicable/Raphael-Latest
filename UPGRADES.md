@@ -1970,13 +1970,498 @@ class GoalTree:
 
 ---
 
-Do NOT run this against real targets without:
+## P18 — Operational Safety
 
-- [ ] **All hardcoded credentials removed** (already fixed: sudo password, JWT_SECRET)
-- [ ] **API key rotation** — the .env has what appear to be real NVIDIA/Ollama keys. Rotate before any operational use.
-- [ ] **Tor enforcement cannot be bypassed** — `--no-anonymity` is removed (P7a)
-- [ ] **IPv6 isolation** — `sysctl disable_ipv6=1` in Dockerfiles + ip6tables DROP (P7c)
-- [ ] **No DNS leaks** — `socks5h://` everywhere, no direct `socket.create_connection` (P7b)
-- [ ] **Audit trail hardened** — current audit log is a JSONL file. Make it append-only via Docker volume permissions or ship to external syslog
-- [ ] **No evidence on disk** — `brain.db`, `recon_log`, `audit/` all persist on Docker volumes. Add encryption-at-rest or shutdown wipe
-- [ ] **Container-level egress lockdown** — iptables DROP in each container, only Tor proxy allowed (P7e)
+**Status: 🔲 Planned — implement after P7 (anonymity), before P9 (real target testing)**
+
+Without these, Raphael gets the operator caught, banned, or sued within the first hour of a real engagement. Rate limiting, kill switch, and scope enforcement are non-negotiable before hitting anything outside vulnu-lab.
+
+### 18a — Per-Target Rate Limiting
+
+Current state: multi-target executor drops concurrent nmap/nuclei scans on a single target. Any WAF or IDS catches this in seconds.
+
+```python
+# orchestrator/ratelimit.py
+from collections import defaultdict
+import asyncio, time
+
+class TokenBucket:
+    """Per-target token bucket. Refills at rate/second, max burst."""
+    def __init__(self, rate: float = 2.0, burst: int = 5):
+        self.rate = rate
+        self.burst = burst
+        self.tokens = burst
+        self.last_refill = time.monotonic()
+
+    async def acquire(self):
+        """Block until a token is available."""
+        while self.tokens < 1:
+            now = time.monotonic()
+            elapsed = now - self.last_refill
+            self.tokens = min(self.burst, self.tokens + elapsed * self.rate)
+            self.last_refill = now
+            if self.tokens < 1:
+                await asyncio.sleep(0.1)
+        self.tokens -= 1
+
+class RateLimiter:
+    def __init__(self, default_rate: float = 2.0):
+        self.buckets: dict[str, TokenBucket] = defaultdict(lambda: TokenBucket(default_rate))
+
+    async def wait(self, target: str):
+        await self.buckets[target].acquire()
+
+    def set_rate(self, target: str, rate: float):
+        self.buckets[target].rate = rate
+```
+
+**Integration:** Wrap every phase executor call:
+
+```python
+# In each executor:
+class ReconExecutor:
+    def __init__(self):
+        self.ratelimiter = RateLimiter()
+
+    async def execute(self, target: str, context: dict) -> list[Finding]:
+        await self.ratelimiter.wait(target)  # <-- blocks if target is being hammered
+        ...
+```
+
+**Default rates by action:**
+
+| Action | Rate | Rationale |
+|--------|------|-----------|
+| Port scan (nmap) | 1/second | Aggressive scans trigger IPS immediately |
+| Web request (nuclei, whatweb) | 2/second | Safe for most targets |
+| SQLi testing | 0.5/second | Slow, WAF-sensitive |
+| Credential spraying | 0.1/second (1 per 10s) | Lockout threshold is ~5 attempts/minute |
+| Brute force | 0.05/second (1 per 20s) | Account lockout at ~3 attempts/minute |
+
+### 18b — Emergency Kill Switch
+
+Current `/stop` stops the autonomous loop but leaves:
+- Active Sliver implants on target (still beaconing back)
+- C2 server still listening
+- Active exfil tunnels still sending data
+- Docker containers still running
+- Audit logs, findings, credentials on disk
+
+Real kill switch — creates plausible deniability:
+
+```python
+# orchestrator/killswitch.py
+class KillSwitch:
+    """Emergency stop. Destroys evidence, kills C2, removes persistence."""
+
+    async def fire(self, reason: str, preserve_evidence: bool = False):
+        """
+        Chain: implode C2 → kill exfil → destroy persistence → wipe logs → stop Tor.
+        Set preserve_evidence=False (default) for operational emergencies.
+        """
+        log = []
+        # 1. Signal all Sliver agents to self-destruct
+        log.append(await self._signal_implode())
+        # 2. Kill C2 listener
+        log.append(await self._kill_c2())
+        # 3. Terminate active exfil
+        log.append(await self._kill_exfil())
+        # 4. Remove persistence entries on compromised hosts
+        log.append(await self._remove_persistence())
+        # 5. Clear audit trail (unless preserve_evidence=True for post-mortem)
+        if not preserve_evidence:
+            log.append(await self._wipe_audit())
+        # 6. Stop outbound traffic (kill Tor proxy)
+        log.append(await self._kill_tor())
+        # 7. Write single tombstone record
+        self._write_tombstone(reason, log)
+        return log
+
+    async def _signal_implode(self) -> str:
+        """Send implant remote self-delete command via Sliver."""
+        ...
+
+    async def _kill_c2(self) -> str:
+        """Shutdown C2 HTTP listener, close gRPC."""
+        ...
+
+    async def _wipe_audit(self) -> str:
+        """Overwrite audit JSONL, brain.db, keyring.db with random data, then truncate."""
+        ...
+```
+
+**Trigger methods:**
+1. CLI: `/kill` or `killswitch --preserve-evidence`
+2. HTTP: `POST /v1/kill` (requires admin scope)
+3. Signal: Graceful shutdown catches SIGINT/SIGTERM and fires the kill switch
+4. Dead man switch: If Raphael doesn't check in with an external watchdog for 24h, kill switch fires automatically
+
+### 18c — Scope Enforcement
+
+No mechanism currently prevents Raphael from touching unauthorized targets. A typo in the target domain or a DNS resolution that lands on an unowned IP would hit a third party.
+
+```python
+# orchestrator/scope.py
+import ipaddress, re
+from dataclasses import dataclass
+
+@dataclass
+class AllowedScope:
+    """Defines the authorized target scope."""
+    domains: list[str]       # ["targetcorp.com", "targetcorp.io"]
+    ip_ranges: list[str]     # ["10.0.0.0/8", "192.168.1.0/24"]
+    ports: list[int]         # [80, 443, 8080-8090]
+    exclude: list[str]       # ["anything.targetcorp.com"] — out of scope per client
+
+    def allows_domain(self, domain: str) -> bool:
+        return any(domain == d or domain.endswith(f".{d}") for d in self.domains)
+
+    def allows_ip(self, ip: str) -> bool:
+        addr = ipaddress.ip_address(ip)
+        return any(addr in ipaddress.ip_network(r) for r in self.ip_ranges)
+
+    def allows_port(self, port: int) -> bool:
+        return port in self.ports
+
+    def check(self, target: str) -> bool:
+        """Gate all outbound actions through this."""
+        # If it's an IP, check ranges. If it's a domain, check domains.
+        try:
+            ipaddress.ip_address(target)
+            return self.allows_ip(target)
+        except ValueError:
+            return self.allows_domain(target)
+```
+
+**Integration points:**
+- `ProxyGuard.check()` — before any outbound connection, verify target is in scope
+- Phase executors — `scope.check(target)` or reject the finding
+- DNS resolution — resolve domain first, check IP against scope, reject if out of scope
+- Tool executors — inject scope as `--exclude` args where supported (nmap, nuclei)
+
+**Strict mode:**
+```
+SCOPE_STRICT = true   # Reject any out-of-scope request at the network level
+SCOPE_STRICT = false  # Log warning but allow (discovery mode)
+```
+
+### 18d — OPSEC Timing Jitter (Moved from P7)
+
+Every executor action currently fires as fast as the system can run. This creates a distinctive pattern — regular, machine-speed — that any behavioral detection catches immediately.
+
+```python
+# orchestrator/opsec_jitter.py
+import random, asyncio, datetime
+
+class Jitter:
+    """Add human-like timing variance to all tool execution."""
+
+    @staticmethod
+    def delay(action_type: str) -> float:
+        """Return a random delay (seconds) before the next action."""
+        profiles = {
+            "cmd":       (2, 8),     # time between typing commands
+            "scan":      (5, 15),    # time between scan launches
+            "exploit":   (30, 120),  # time between exploit attempts
+            "exfil":     (60, 600),  # time between exfil batches
+            "pivot":     (10, 45),   # time between pivot hops
+        }
+        lo, hi = profiles.get(action_type, (2, 8))
+        return random.uniform(lo, hi)
+
+    @staticmethod
+    def time_bias() -> float:
+        """Return 0-1 bias based on current hour. Lower at 3am (suspicious)."""
+        hour = datetime.datetime.now().hour
+        # Heaviest activity during business hours (9-5)
+        # Lighter at night — mimics human operator sleeping
+        if 9 <= hour <= 17:
+            return random.uniform(0.7, 1.0)
+        elif 6 <= hour <= 8 or 18 <= hour <= 22:
+            return random.uniform(0.4, 0.7)
+        else:
+            return random.uniform(0.1, 0.4)  # 23:00-05:59
+
+    @classmethod
+    async def wait(cls, action_type: str):
+        """Wait with appropriate jitter for the action type."""
+        base = cls.delay(action_type)
+        bias = cls.time_bias()
+        await asyncio.sleep(base * bias)
+```
+
+### 18e — Audit Trail Hardening (Moved from P7)
+
+Current audit is a plain JSONL file in a Docker volume. Trivially modified, no integrity verification.
+
+```python
+# orchestrator/audit.py
+import hashlib, json, time
+
+class AuditLog:
+    def __init__(self, path: str = "/data/audit.jsonl"):
+        self.path = path
+        self.prev_hash = self._last_hash()
+
+    def _last_hash(self) -> str:
+        try:
+            with open(self.path) as f:
+                for line in f:
+                    entry = json.loads(line)
+                    self.prev_hash = entry["hash"]
+        except (FileNotFoundError, json.JSONDecodeError):
+            return hashlib.sha256(b"genesis").hexdigest()
+
+    def write(self, entry: dict):
+        """Append entry with hash chain. Each entry's hash includes previous entry's hash."""
+        payload = {
+            **entry,
+            "timestamp": time.time(),
+            "prev_hash": self.prev_hash,
+        }
+        payload_hash = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+        payload["hash"] = payload_hash
+        self.prev_hash = payload_hash
+        with open(self.path, "a") as f:
+            f.write(json.dumps(payload) + "\n")
+
+    def verify(self) -> list[str]:
+        """Walk the chain and report any tampering."""
+        violations = []
+        prev = hashlib.sha256(b"genesis").hexdigest()
+        try:
+            with open(self.path) as f:
+                for i, line in enumerate(f, 1):
+                    entry = json.loads(line)
+                    expected_hash = hashlib.sha256(
+                        json.dumps({k: v for k, v in entry.items() if k != "hash"}, sort_keys=True).encode()
+                    ).hexdigest()
+                    if entry["hash"] != expected_hash:
+                        violations.append(f"Line {i}: hash mismatch (tampered)")
+                    if entry.get("prev_hash") != prev:
+                        violations.append(f"Line {i}: prev_hash mismatch (chain broken)")
+                    prev = entry["hash"]
+        except FileNotFoundError:
+            violations.append("Audit log not found")
+        return violations
+```
+
+Also configure:
+- `chmod 600` on the audit file (only Raphael's UID can read/write)
+- Docker volume with `:ro` after write — lock the audit file from external modification
+- Optionally ship a copy to external syslog (`rsyslog` or papertrail) as a live backup
+
+### Files to create:
+- `orchestrator/ratelimit.py` — TokenBucket, RateLimiter
+- `orchestrator/killswitch.py` — KillSwitch, dead man switch
+- `orchestrator/scope.py` — AllowedScope, scope check
+- `orchestrator/opsec_jitter.py` — Jitter, action profiles, time bias
+- `orchestrator/audit.py` — AuditLog, hash chain, verify
+
+### Files to modify:
+- All phase executors — inject `RateLimiter.wait(target)` before tool execution
+- `orchestrator/proxy_guard.py` — inject `ScopeCheck` before outbound connections
+- `orchestrator/brain/api.py` — wire `KillSwitch.fire()` into `/v1/stop`
+- `raphael_cli.py` — add `/kill` command
+- `docker-compose.yml` — add `/v1/kill` route, audit volume permissions
+
+---
+
+## P19 — RSI Safety
+
+**Status: 🔲 Planned — implement alongside or immediately after P17**
+
+P17 gives Raphael the ability to read, patch, and improve its own source code. Without these safeguards, the self-modification engine is the single most dangerous component in the system — an LLM-generated patch with prompt-injected malware could compromise the host.
+
+### 19a — Sandbox Escape Protection
+
+The self-modification engine (P17) generates patches, applies them, runs the test harness, and if tests pass, deploys them. If the LLM-generated patch contains malicious code (via prompt injection in a prior target interaction), it runs with the same privileges as Raphael itself.
+
+```python
+# orchestrator/rsi/sandbox.py
+import subprocess, os, tempfile, json
+
+class PatchSandbox:
+    """Apply and test patches in an isolated container before deploying."""
+
+    SANDBOX_IMAGE = "python:3.11-slim"
+
+    def validate_patch(self, patch: "Patch") -> dict:
+        """
+        Run patch in isolated container with:
+        - No network access
+        - Read-only filesystem (+ temp write dir)
+        - Seccomp profile blocking exec/fork/mount
+        - 30-second timeout max
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            # Write the patched file
+            patch_path = os.path.join(tmp, os.path.basename(patch.path))
+            with open(patch_path, "w") as f:
+                f.write(patch.text)
+
+            # Write a test harness
+            test_path = os.path.join(tmp, "test_patch.py")
+            with open(test_path, "w") as f:
+                f.write(patch.test_code)
+
+            # Run in sandboxed container
+            result = subprocess.run(
+                [
+                    "docker", "run", "--rm",
+                    "--network", "none",             # no network
+                    "--read-only",                   # read-only rootfs
+                    "--tmpfs", "/tmp:rw,noexec",      # writable temp, no exec
+                    "--security-opt", "seccomp=patch_sandbox.json",  # restrict syscalls
+                    "--memory", "256m",
+                    "--cpus", "0.5",
+                    "--timeout", "30",
+                    "-v", f"{tmp}:/workspace:ro",
+                    self.SANDBOX_IMAGE,
+                    "python", "/workspace/test_patch.py"
+                ],
+                capture_output=True, text=True, timeout=35
+            )
+            return {
+                "passed": result.returncode == 0,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+```
+
+Also add a **syscall allowlist** — the sandbox container only allows:
+
+```
+read, write, open, close, stat, mmap, munmap, brk, exit_group
+```
+
+Everything else (clone, execve, mount, ptrace, socket) is blocked by seccomp. This makes it functionally impossible for a patch to escape even if the LLM generated malicious code.
+
+### 19b — Git-Based Rollback
+
+Current plan: backup file before applying patch, restore on test failure. But latent bugs can pass the test harness and surface hours later — at which point the original file has been overwritten and the backup is gone.
+
+```python
+# orchestrator/rsi/rollback.py
+import subprocess, time
+from pathlib import Path
+
+class RollbackManager:
+    def __init__(self, repo_path: str = "."):
+        self.repo = Path(repo_path)
+        self._ensure_git()
+
+    def _ensure_git(self):
+        """Init git in Raphael's source dir if not already tracked."""
+        if not (self.repo / ".git").exists():
+            subprocess.run(["git", "init"], cwd=self.repo, capture_output=True)
+            subprocess.run(["git", "add", "-A"], cwd=self.repo, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", f"baseline {time.time()}"],
+                cwd=self.repo, capture_output=True
+            )
+
+    def snapshot(self, tag: str):
+        """Tag the current state before applying a patch."""
+        subprocess.run(["git", "add", "-A"], cwd=self.repo, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", f"pre-patch: {tag}"],
+            cwd=self.repo, capture_output=True
+        )
+        subprocess.run(["git", "tag", f"pre-{tag}"], cwd=self.repo, capture_output=True)
+
+    def rollback(self, tag: str) -> bool:
+        """Revert to pre-patch state. Returns False if the tag doesn't exist."""
+        result = subprocess.run(
+            ["git", "reset", "--hard", f"pre-{tag}"],
+            cwd=self.repo, capture_output=True
+        )
+        return result.returncode == 0
+
+    def prune_old(self, keep: int = 20):
+        """Keep last N tags, delete older ones to prevent tag bloat."""
+        tags = subprocess.run(
+            ["git", "tag", "--sort=-creatordate"],
+            cwd=self.repo, capture_output=True, text=True
+        ).stdout.strip().split("\n")
+        for tag in tags[keep:]:
+            subprocess.run(["git", "tag", "-d", tag], cwd=self.repo, capture_output=True)
+```
+
+### 19c — LLM Cost Management
+
+Worm models via NVIDIA API cost $0.50-2.00/call. A single RSI self-audit cycle (P17) could call the LLM 50+ times. Without a budget, Raphael can burn hundreds of dollars per session.
+
+```python
+# orchestrator/cost_tracker.py
+import os, time
+
+class CostTracker:
+    """Track LLM spend per session, enforce budget caps."""
+
+    RATES = {
+        "worm":  {"input": 0.50, "output": 1.50},   # per 1M tokens
+        "local": {"input": 0.00, "output": 0.00},   # Ollama is free
+    }
+
+    def __init__(self, budget: float = 10.0):
+        self.budget = budget          # max spend per session
+        self.spent = 0.0
+        self.calls = 0
+
+    def record(self, model: str, input_tokens: int, output_tokens: int):
+        rate = self.RATES.get(model, self.RATES["worm"])
+        cost = (input_tokens / 1_000_000 * rate["input"] +
+                output_tokens / 1_000_000 * rate["output"])
+        self.spent += cost
+        self.calls += 1
+
+    def can_afford(self, estimated_cost: float = 0.01) -> bool:
+        """Return False if budget is exhausted."""
+        return self.spent + estimated_cost <= self.budget
+
+    def degrade(self) -> str:
+        """Return model to use based on remaining budget."""
+        if self.spent < self.budget * 0.5:
+            return "worm"      # premium model, plenty of budget
+        elif self.spent < self.budget * 0.8:
+            return "worm_mini" # cheaper variant
+        else:
+            return "local"     # Ollama, free but slower
+```
+
+**Integration:** Wrap all LLM calls in `providers.py`:
+
+```python
+# In call_model():
+cost_tracker.record(model, input_tokens, output_tokens)
+if not cost_tracker.can_afford():
+    model = cost_tracker.degrade()
+```
+
+### Files to create:
+- `orchestrator/rsi/sandbox.py` — PatchSandbox, seccomp profile, container isolation
+- `orchestrator/rsi/rollback.py` — RollbackManager, git tag + reset
+- `orchestrator/cost_tracker.py` — CostTracker, budget enforcement, degrade logic
+
+### Files to modify:
+- `orchestrator/rsi/self_modify.py` — wire PatchSandbox.validate_patch() before applying
+- `orchestrator/providers.py` — inject CostTracker into all LLM calls
+
+---
+
+## Implementation Order (Updated)
+
+| Phase | Items | Dependencies | Effort | Gate |
+|-------|-------|-------------|--------|------|
+| **0** | Phase executors, structured findings, LLM loop fix | None | 3-5d | `/autonomous start` produces real findings |
+| **1** | Kali sidecar, strip duplicate tools | P0 | 2-3d | `kali-tools:3800/run` returns JSON |
+| **2** | C2 abstraction, agent models, real post-ex | P1 | 3-5d | Sliver agent checks in |
+| **3** | Hashcat, certipy, SOCKS, planner, keyring, evasion | P2 | 2-3w | NTLM hash cracked, certipy finds template |
+| **4** | ProxyGuard cleanup, no_anonymity removal, IPv6, DNS | P0 | 2-3d | `ProxyGuard().check() == True` |
+| **5** | DB maintenance, secrets, auth, offline mode | P4 | 2-3d | Auth layer rejects bad tokens |
+| **6** | **Operational Safety** (rate limit, kill switch, scope, jitter, audit) | P4 | 3-5d | Kill switch fires and destroys evidence |
+| **7** | Kill chain test, multi-target, circuit breakers | P1-P6 | 3-4d | `run_validation.sh` passes all stages |
+| **8** | CLI dashboard, live TUI, session commands | P7 | 3-4d | `/dashboard` shows live targets |
+| **9** | RSI (self-modification, self-preservation, goal tree) | P0-P8 | 2-3w | RSI engine patches dead code |
+| **10** | **RSI Safety** (sandbox, rollback, cost tracking) | P9 | 1w | Malicious patch blocked by seascope |

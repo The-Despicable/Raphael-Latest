@@ -661,7 +661,194 @@ print(f'Online: {od.is_online()}')
 
 ---
 
-## Phase 6 — Validation (P9, P12, P14)
+## Phase 6 — Operational Safety (P18)
+
+**Goal:** Don't get caught, don't hit unintended targets, don't leave evidence.
+
+### 6a — Per-Target Rate Limiting
+
+Create `orchestrator/ratelimit.py`:
+
+```python
+from collections import defaultdict
+import asyncio, time
+
+class TokenBucket:
+    def __init__(self, rate: float = 2.0, burst: int = 5):
+        self.rate = rate
+        self.burst = burst
+        self.tokens = burst
+        self.last_refill = time.monotonic()
+
+    async def acquire(self):
+        while self.tokens < 1:
+            now = time.monotonic()
+            elapsed = now - self.last_refill
+            self.tokens = min(self.burst, self.tokens + elapsed * self.rate)
+            self.last_refill = now
+            if self.tokens < 1:
+                await asyncio.sleep(0.1)
+        self.tokens -= 1
+
+class RateLimiter:
+    def __init__(self, default_rate: float = 2.0):
+        self.buckets: dict[str, TokenBucket] = defaultdict(lambda: TokenBucket(default_rate))
+
+    async def wait(self, target: str):
+        await self.buckets[target].acquire()
+
+    def set_rate(self, target: str, rate: float):
+        self.buckets[target].rate = rate
+```
+
+Default rates by action:
+
+| Action | Rate | Why |
+|--------|------|-----|
+| Port scan (nmap) | 1/s | Triggers IPS immediately above this |
+| Web request (nuclei, whatweb) | 2/s | Safe for most targets |
+| SQLi testing | 0.5/s | WAF-sensitive |
+| Credential spraying | 0.1/s | Lockout at ~5 attempts/min |
+| Brute force | 0.05/s | Lockout at ~3 attempts/min |
+
+### 6b — Emergency Kill Switch
+
+Create `orchestrator/killswitch.py`:
+
+```python
+class KillSwitch:
+    """Emergency stop. Destroys evidence, kills C2, removes persistence."""
+
+    async def fire(self, reason: str, preserve_evidence: bool = False):
+        log = []
+        log.append(await self._signal_implode())
+        log.append(await self._kill_c2())
+        log.append(await self._kill_exfil())
+        log.append(await self._remove_persistence())
+        if not preserve_evidence:
+            log.append(await self._wipe_audit())
+        log.append(await self._kill_tor())
+        self._write_tombstone(reason, log)
+        return log
+```
+
+Trigger methods: CLI `/kill`, HTTP `POST /v1/kill`, graceful SIGINT/SIGTERM, dead man switch (24h no check-in → auto-fire).
+
+### 6c — Scope Enforcement
+
+Create `orchestrator/scope.py`:
+
+```python
+import ipaddress, re
+from dataclasses import dataclass
+
+@dataclass
+class AllowedScope:
+    domains: list[str]
+    ip_ranges: list[str]
+    ports: list[int]
+    exclude: list[str]
+
+    def allows_domain(self, domain: str) -> bool:
+        return any(domain == d or domain.endswith(f".{d}") for d in self.domains)
+
+    def allows_ip(self, ip: str) -> bool:
+        addr = ipaddress.ip_address(ip)
+        return any(addr in ipaddress.ip_network(r) for r in self.ip_ranges)
+
+    def check(self, target: str) -> bool:
+        try:
+            ipaddress.ip_address(target)
+            return self.allows_ip(target)
+        except ValueError:
+            return self.allows_domain(target)
+```
+
+Gate all outbound actions: `scope.check(target)` in ProxyGuard and every phase executor.
+
+### 6d — OPSEC Timing Jitter
+
+Create `orchestrator/opsec_jitter.py`:
+
+```python
+import random, asyncio, datetime
+
+class Jitter:
+    @staticmethod
+    def delay(action_type: str) -> float:
+        profiles = {
+            "cmd":       (2, 8),
+            "scan":      (5, 15),
+            "exploit":   (30, 120),
+            "exfil":     (60, 600),
+            "pivot":     (10, 45),
+        }
+        lo, hi = profiles.get(action_type, (2, 8))
+        return random.uniform(lo, hi)
+
+    @staticmethod
+    def time_bias() -> float:
+        hour = datetime.datetime.now().hour
+        if 9 <= hour <= 17:
+            return random.uniform(0.7, 1.0)
+        elif 6 <= hour <= 8 or 18 <= hour <= 22:
+            return random.uniform(0.4, 0.7)
+        else:
+            return random.uniform(0.1, 0.4)
+
+    @classmethod
+    async def wait(cls, action_type: str):
+        await asyncio.sleep(cls.delay(action_type) * cls.time_bias())
+```
+
+### 6e — Audit Trail Hardening
+
+Create `orchestrator/audit.py` — hash-chained JSONL (each entry SHA256 includes previous entry hash). Verify function walks the chain and reports tampering.
+
+**Verification:**
+```bash
+# Rate limiting
+python3 -c "
+from orchestrator.ratelimit import RateLimiter
+import asyncio
+rl = RateLimiter()
+async def test():
+    await rl.wait('target.com')
+    print('Token acquired (blocks until rate limit allows)')
+asyncio.run(test())
+"
+
+# Kill switch (dry run)
+python3 -c "
+from orchestrator.killswitch import KillSwitch
+ks = KillSwitch()
+print('KillSwitch ready — fire() would destroy C2, exfil, logs')
+"
+
+# Scope
+python3 -c "
+from orchestrator.scope import AllowedScope
+s = AllowedScope(domains=['target.com'], ip_ranges=['10.0.0.0/8'], ports=[80,443], exclude=[])
+assert s.check('target.com')
+assert s.check('sub.target.com')
+assert not s.check('evil.com')
+print('Scope enforcement working')
+"
+
+# OPSEC jitter
+python3 -c "
+from orchestrator.opsec_jitter import Jitter
+import asyncio
+async def test():
+    await Jitter.wait('scan')
+    print('Jitter delay applied')
+asyncio.run(test())
+"
+```
+
+---
+
+## Phase 7 — Validation (P9, P12, P14)
 
 ### 6a — Kill Chain Test (P9)
 
@@ -805,7 +992,7 @@ print(f'Active: {len(tq.active)}')
 
 ---
 
-## Phase 7 — CLI Dashboard (P11)
+## Phase 8 — CLI Dashboard (P11)
 
 **Goal:** Live Rich TUI showing ongoing engagements, not just a REPL.
 
@@ -854,7 +1041,7 @@ def dashboard():
 
 ---
 
-## Phase 8 — Recursive Self-Improvement (P17)
+## Phase 9 — Recursive Self-Improvement (P17)
 
 **Goal:** Raphael can read, analyze, and improve its own source code. Preserve itself. Decompose goals at runtime.
 
@@ -1072,6 +1259,144 @@ print(f'Total goals: {len(gt.root.children)}')
 
 ---
 
+## Phase 10 — RSI Safety (P19)
+
+**Goal:** P17 gives Raphael the ability to modify its own code. Without these safeguards, a prompt-injected patch could compromise the host.
+
+### 10a — Sandbox Escape Protection
+
+Create `orchestrator/rsi/sandbox.py`:
+
+```python
+import subprocess, os, tempfile
+
+class PatchSandbox:
+    """Run patches in isolated container with no network, read-only FS, seccomp."""
+
+    def validate_patch(self, patch: "Patch") -> dict:
+        with tempfile.TemporaryDirectory() as tmp:
+            patch_path = os.path.join(tmp, os.path.basename(patch.path))
+            with open(patch_path, "w") as f:
+                f.write(patch.text)
+
+            test_path = os.path.join(tmp, "test_patch.py")
+            with open(test_path, "w") as f:
+                f.write(patch.test_code)
+
+            result = subprocess.run(
+                [
+                    "docker", "run", "--rm",
+                    "--network", "none",
+                    "--read-only",
+                    "--tmpfs", "/tmp:rw,noexec",
+                    "--security-opt", "seccomp=patch_sandbox.json",
+                    "--memory", "256m",
+                    "--cpus", "0.5",
+                    "-v", f"{tmp}:/workspace:ro",
+                    "python:3.11-slim",
+                    "python", "/workspace/test_patch.py"
+                ],
+                capture_output=True, text=True, timeout=35
+            )
+            return {
+                "passed": result.returncode == 0,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+```
+
+Seccomp allowlist (patch_sandbox.json) restricts syscalls to: read, write, open, close, stat, mmap, munmap, brk, exit_group. Blocks clone, execve, mount, ptrace, socket — making escape functionally impossible.
+
+### 10b — Git-Based Rollback
+
+Create `orchestrator/rsi/rollback.py`:
+
+```python
+class RollbackManager:
+    def __init__(self, repo_path: str = "."):
+        self.repo = Path(repo_path)
+        self._ensure_git()
+
+    def snapshot(self, tag: str):
+        subprocess.run(["git", "add", "-A"], cwd=self.repo, capture_output=True)
+        subprocess.run(["git", "commit", "-m", f"pre-patch: {tag}"], cwd=self.repo, capture_output=True)
+        subprocess.run(["git", "tag", f"pre-{tag}"], cwd=self.repo, capture_output=True)
+
+    def rollback(self, tag: str) -> bool:
+        result = subprocess.run(["git", "reset", "--hard", f"pre-{tag}"], cwd=self.repo, capture_output=True)
+        return result.returncode == 0
+
+    def prune_old(self, keep: int = 20):
+        tags = subprocess.run(["git", "tag", "--sort=-creatordate"],
+                              cwd=self.repo, capture_output=True, text=True).stdout.strip().split("\n")
+        for tag in tags[keep:]:
+            subprocess.run(["git", "tag", "-d", tag], cwd=self.repo, capture_output=True)
+```
+
+### 10c — LLM Cost Management
+
+Create `orchestrator/cost_tracker.py`:
+
+```python
+class CostTracker:
+    RATES = {
+        "worm":  {"input": 0.50, "output": 1.50},
+        "local": {"input": 0.00, "output": 0.00},
+    }
+
+    def __init__(self, budget: float = 10.0):
+        self.budget = budget
+        self.spent = 0.0
+        self.calls = 0
+
+    def record(self, model: str, input_tokens: int, output_tokens: int):
+        rate = self.RATES.get(model, self.RATES["worm"])
+        self.spent += (input_tokens / 1_000_000 * rate["input"] +
+                       output_tokens / 1_000_000 * rate["output"])
+        self.calls += 1
+
+    def can_afford(self, estimated_cost: float = 0.01) -> bool:
+        return self.spent + estimated_cost <= self.budget
+
+    def degrade(self) -> str:
+        if self.spent < self.budget * 0.5:
+            return "worm"
+        elif self.spent < self.budget * 0.8:
+            return "worm_mini"
+        else:
+            return "local"
+```
+
+Wire into `orchestrator/providers.py` — every LLM call records cost and degrades model if budget exhausted.
+
+**Verification:**
+```bash
+# Sandbox
+python3 -c "
+from orchestrator.rsi.sandbox import PatchSandbox
+sandbox = PatchSandbox()
+print('PatchSandbox ready — would run patch in docker with no network, read-only FS, seccomp')
+"
+
+# Rollback
+python3 -c "
+from orchestrator.rsi.rollback import RollbackManager
+rm = RollbackManager('/tmp/test_repo')
+rm.snapshot('test_patch')
+print('Snapshot tagged. rollback() would git reset --hard pre-test_patch')
+"
+
+# Cost tracking
+python3 -c "
+from orchestrator.cost_tracker import CostTracker
+ct = CostTracker(budget=5.0)
+ct.record('worm', 1000, 500)
+print(f'Spent: \${ct.spent:.4f}, budget: \${ct.budget}, model: {ct.degrade()}')
+"
+```
+
+---
+
 ## Implementation Order
 
 | Phase | Items | Dependencies | Estimated Effort | Verification Gate |
@@ -1082,11 +1407,13 @@ print(f'Total goals: {len(gt.root.children)}')
 | **3** | Hashcat, certipy, SOCKS, planner, keyring, evasion | Phase 2 | 2-3 weeks | NTLM hash cracked, certipy finds template, SOCKS chain routes |
 | **4** | ProxyGuard cleanup, no_anonymity removal, IPv6, DNS | Phase 0 | 2-3 days | `ProxyGuard().check() == True`, no IPv6 egress |
 | **5** | DB maintenance, secrets, auth, offline mode | Phase 4 | 2-3 days | Auth layer rejects bad tokens, CircuitBreaker opens |
-| **6** | Kill chain test, multi-target, circuit breakers | Phases 0-5 | 3-4 days | `test-range/run_validation.sh` passes all stages |
-| **7** | CLI dashboard, live TUI, session commands | Phase 6 | 3-4 days | `/dashboard` shows live targets + findings |
-| **8** | Self-modification, self-preservation, goal tree | Phases 0-7 | 2-3 weeks | RSI engine patches dead code, modifies own executor |
+| **6** | **Operational Safety** (rate limit, kill switch, scope, jitter, audit) | Phase 4 | 3-5 days | Kill switch fires and destroys evidence |
+| **7** | Kill chain test, multi-target, circuit breakers | Phases 0-6 | 3-4 days | `test-range/run_validation.sh` passes all stages |
+| **8** | CLI dashboard, live TUI, session commands | Phase 7 | 3-4 days | `/dashboard` shows live targets + findings |
+| **9** | Self-modification, self-preservation, goal tree | Phases 0-8 | 2-3 weeks | RSI engine patches dead code, modifies own executor |
+| **10** | **RSI Safety** (sandbox, rollback, cost tracking) | Phase 9 | 1 week | Malicious patch blocked by seccomp, cost auto-degrades |
 
-**Total estimated effort: ~6-10 weeks** depending on familiarity with tooling.
+**Total estimated effort: ~8-12 weeks** depending on familiarity with tooling.
 
 ---
 
