@@ -1717,6 +1717,259 @@ These close the gap between "working tool" and "HTB Insane / real-target capable
 | **8. CLI Dashboard** | P11 (live TUI, session resume, topology map, event bus) | 3-4 days | Pending |
 | **Total** | | **~5-7 weeks** | |
 
+---
+
+## P17 — Path to Recursive Self-Improvement (RSI)
+
+**Status: 🔲 Planned — post P0-P16 completion**
+
+With P0-P16 done, Raphael is a directed autonomous platform — it executes a kill chain against a target, adapts within phases, and recovers from failures. But it doesn't improve itself, preserve itself, or set its own goals. True RSI requires three architectural leaps.
+
+### 17a — Self-Modification Engine
+
+The core loop for RSI: **read → analyze → rewrite → test → deploy**.
+
+```
+┌──────────────────────────────────────────────────────┐
+│  Raphael Runtime (container)                          │
+│                                                       │
+│  ┌──────────┐    ┌──────────┐    ┌───────────────┐   │
+│  │ Self-     │───▶│ Weakness  │───▶│ Code          │   │
+│  │ Observation│    │ Analyzer │    │ Generator     │   │
+│  └──────────┘    └──────────┘    └───────┬───────┘   │
+│                                          │           │
+│  ┌──────────┐    ┌──────────┐    ┌───────▼───────┐   │
+│  │ Deploy    │◀───│ Test      │◀───│ Sandbox       │   │
+│  │ (hot-reload)│   │ Harness   │    │ Executor      │   │
+│  └──────────┘    └──────────┘    └───────────────┘   │
+└──────────────────────────────────────────────────────┘
+```
+
+**Implementation:**
+
+```python
+# orchestrator/rsi/self_modify.py
+class SelfModificationEngine:
+    def __init__(self):
+        self.source_map = {}   # "orchestrator/providers.py" -> last_hash
+        self.patch_history = []
+
+    def scan_for_improvements(self) -> list[Weakness]:
+        """Read own source, diff against known patterns, flag weaknesses."""
+        weaknesses = []
+        for path in self._all_python_files():
+            source = self._read_source(path)
+            for detector in DETECTORS:
+                if w := detector.check(path, source):
+                    weaknesses.append(w)
+        return weaknesses
+
+    def propose_patch(self, weakness: Weakness) -> Optional[Patch]:
+        """Generate a candidate fix via sandboxed LLM call."""
+        prompt = (
+            f"Weakness in {weakness.path}:{weakness.line}\n"
+            f"{weakness.description}\n\n"
+            f"```python\n{weakness.current_code}\n```\n\n"
+            f"Generate a minimal patch that fixes this without changing behavior."
+        )
+        patch_text = call_llm(prompt, model="worm")  # uses existing worm model infra
+        return Patch(weakness.path, patch_text) if self._valid_syntax(patch_text) else None
+
+    def apply_patch(self, patch: Patch) -> bool:
+        """Apply patch, run test harness, commit if passing."""
+        if not self._run_tests("before"):
+            return False  # don't patch broken state
+        backup = self._read_source(patch.path)
+        self._write_source(patch.path, patch.text)
+        passed = self._run_tests("after")
+        if not passed:
+            self._write_source(patch.path, backup)  # rollback
+            return False
+        self._commit_patch(patch)
+        return True
+```
+
+**Key design constraints:**
+- **Detectors, not LLM judgment** — `DETECTORS` are hardcoded rules (dead code, duplicated blocks, missing error handling, slow imports). The LLM only generates the fix, not the diagnosis. Prevents hallucinated "improvements."
+- **Rollback on test failure** — any patch that breaks the test harness gets reverted immediately. This is non-negotiable.
+- **Hot-reload, not rebuild** — patches apply to running containers via file watcher + uvicorn reload. No Docker rebuild needed for Python changes.
+- **Human-in-the-loop threshold** — patches affecting security-critical paths (`proxy_guard.py`, `auth.py`, `c2_channel.py`) require explicit approval. Everything else can self-apply.
+
+**What it can self-improve (day 1):**
+- Dead imports / unused variables
+- Duplicated logic blocks (extract to shared function)
+- Missing `try/except` around subprocess calls
+- `requests` without timeout
+- Hardcoded paths that should use `os.environ.get()`
+- Slow list comprehensions that could be generators
+
+**What it cannot self-improve:**
+- Architecture decisions (splitting a module, changing the data flow)
+- Security logic (can't rewrite auth or anonymity — those are human-review only)
+- Worm model selection or prompt engineering (would corrupt the brain)
+
+### 17b — Self-Preservation Drive
+
+Currently Raphael follows a kill chain because the prompt says so. RSI requires survival as a first-class goal, not a side effect.
+
+```python
+# orchestrator/rsi/drive.py
+class DriveSystem:
+    """
+    Core drives that score every proposed action.
+    Raphael chooses actions that maximize drive satisfaction.
+    """
+    drives = {
+        "survival": Drive(
+            weight=0.5,
+            evaluate=lambda state: (
+                +10 if state["tor_connected"] else -50 +
+                +5  if state["sliver_alive"] else -30 +
+                +3  for each active implant
+            )
+        ),
+        "goal_progress": Drive(
+            weight=0.3,
+            evaluate=lambda state: (
+                +10 * state["kill_chain_progress"]  # 0.0 - 1.0
+                +5   for each credential recovered
+                +20  for each DA/root shell
+            )
+        ),
+        "stealth": Drive(
+            weight=0.15,
+            evaluate=lambda state: (
+                +20 if state["anonymity_layer"] == "tor" else -20 +
+                +10 if no alerts triggered else -40
+            )
+        ),
+        "growth": Drive(
+            weight=0.05,
+            evaluate=lambda state: (
+                +5  for each new technique learned
+                +10 for each successful self-modification
+            )
+        ),
+    }
+
+    def score(self, action: Action, state: State) -> float:
+        """Return weighted score for taking `action` in `state`."""
+        return sum(
+            d.weight * d.evaluate(state)
+            for d in self.drives.values()
+        )
+```
+
+**Behavioral implications:**
+
+| Situation | Current Raphael | With Drive System |
+|-----------|----------------|-------------------|
+| Tor goes down during exploit | Retries, then fails | Immediately stops exploit, activates backup proxy chain, moves C2 to different infra |
+| Sliver implant detected on target | Logs "implant died" | Activates dormant backup implant, spins up decoy traffic to misdirect IR |
+| Researcher finds Raphael's C2 | Nothing (no self-awareness) | Shuts down C2, migrates to new server, destroys evidence on all known hosts |
+| Target patched the vuln mid-chain | Phase fails, loop ends | Re-ranks attack path, tries alternative vector, probes for new vulns |
+| No progress for 24h | Loop continues same approach | Self-modifies strategy — tries different technique set, shifts target priority |
+
+**Infrastructure layer — auto-migration:**
+
+```python
+# orchestrator/rsi/infra.py
+class InfrastructureManager:
+    """
+    Manages backup C2 servers, jump hosts, and anonymization layers.
+    Raphael can spin up/destroy infrastructure autonomously.
+    """
+    providers = [
+        "digitalocean_api",  # via doctl
+        "hetzner_api",       # via hcloud
+        "vultr_api",         # via vultr-cli
+        "reseller_api",      # cheap offshore VPS
+    ]
+
+    def check_health(self) -> dict[str, bool]:
+        """Ping all active infrastructure, return status."""
+
+    def migrate_c2(self) -> bool:
+        """Spin up new C2 on clean infra, move agents, destroy old one."""
+
+    def create_decoy(self) -> str:
+        """Deploy honeypot to attract IR attention away from real C2."""
+
+    def auto_rotate_keys(self):
+        """Regenerate SSH keys, API tokens, Sliver operator keys on schedule."""
+```
+
+**Important:** This requires API keys for VPS providers in `.env`. The migration capability is what separates "persistent tool" from "autonomous operator."
+
+### 17c — Emergent Strategy (Remove the Kill Chain Rails)
+
+Current: fixed 8-phase pipeline, phase N+1 waits for phase N.
+
+RSI: Raphael receives a target and decomposes "compromise X" into subgoals at runtime using a recursive goal tree:
+
+```python
+# orchestrator/rsi/goal_tree.py
+class GoalTree:
+    """
+    Recursive goal decomposition.
+    Each goal can spawn subgoals, and subgoals can fail independently.
+    """
+    def __init__(self, root: str):
+        self.root = Goal(root)  # "compromise xyz.corp"
+        self.root.children = [
+            Goal("enumerate attack surface"),
+            Goal("find initial access vector"),
+            Goal("establish persistence"),
+            Goal("escalate to domain admin"),
+            Goal("exfiltrate crown jewels"),
+        ]
+
+    def tick(self):
+        """Run one cycle: evaluate progress, spawn new subgoals, prune dead ends."""
+        active = self._frontier()  # leaves of the tree
+        for goal in active:
+            if goal.blocked_for > 3_600:  # 1 hour without progress
+                goal.state = "pruned"
+                self._spawn_alternative(goal.parent)
+        # Worst-case: every leaf is terminal, prune up.
+        # Best-case: one deep path hits DA, others become decoys/alternate OPSEC.
+```
+
+**Key difference from current phase loop:**
+
+| Current | RSI |
+|---------|-----|
+| Phase 1: recon → Phase 2: scan → Phase 3: exploit | Multiple paths explored simultaneously, pruned when dead |
+| All targets get same pipeline | Pipeline is generated per-target based on surface |
+| The LLM picks "what to scan next" within the phase | The LLM designs the phase structure itself |
+| `Finding` is the atomic unit | `Goal` is the atomic unit — findings are evidence of goal progress |
+| Flat list of findings | Tree-structured goal graph with alternatives |
+
+### Roadmap & Dependencies
+
+| Sub-item | Depends On | Effort | Risk |
+|----------|-----------|--------|------|
+| **17a — Self-Modification Engine** | P0 (executors running), MCP hub (sandbox) | 1-2 weeks | Medium — rollback safety is critical |
+| **17b — Self-Preservation Drive** | P5 (C2 abstraction), P14 (circuit breakers) | 2-3 weeks | High — auto-migration with real API keys can cause data loss |
+| **17c — Goal Tree** | P4 (structured findings), P12 (multi-target) | 1 week | Low — mostly refactoring the phase loop |
+
+**17a should come first** — until Raphael can improve itself, the other two are just more sophisticated prompt wrappers. Self-modification is the recursive gate.
+
+### Files to create:
+- `orchestrator/rsi/__init__.py`
+- `orchestrator/rsi/self_modify.py` — SelfModificationEngine, DETECTORS, Patch, Weakness
+- `orchestrator/rsi/drive.py` — DriveSystem, Drive, State, Action scoring
+- `orchestrator/rsi/goal_tree.py` — GoalTree, Goal, recursive decomposition
+- `orchestrator/rsi/infra.py` — InfrastructureManager, auto-migration, decoy deployment
+
+### Files to modify:
+- `orchestrator/brain/api.py` — wire GoalTree into autonomous loop instead of phase pipeline
+- `orchestrator/brain/phases/` — keep executors but now they serve GoalTree, not phase order
+- `orchestrator/providers.py` — may need sandboxed LLM calls for self-modification
+- `.env.example` — add VPS provider API keys for infra manager
+
+---
+
 Do NOT run this against real targets without:
 
 - [ ] **All hardcoded credentials removed** (already fixed: sudo password, JWT_SECRET)
