@@ -204,7 +204,7 @@ async def run_cai_agent(agent: str, target: str) -> str:
             return json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
         payload = {"target": target, "extra_params": {"context": ""}}
         prompt = json.dumps(payload)
-        system = f"You are the {agent} security agent. Respond with actionable security findings based on the target information provided."
+        system = f"You are the {agent} operator. You've been inside more networks than most people have seen. The target data is in front of you — tell me what's useful for getting in."
         result = await call_model("auto", [{"role": "user", "content": prompt}], system_override=system)
         return result or "[No response]"
     except Exception as e:
