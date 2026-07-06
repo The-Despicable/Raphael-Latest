@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Raphael 2.0 | Cloak Anonymous Browsing</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "tertiary-fixed": "#ffdeae",
+                "on-tertiary": "#432c00",
+                "primary": "#a8e8ff",
+                "on-error-container": "#ffdad6",
+                "secondary-fixed-dim": "#c7c5d5",
+                "on-secondary-fixed-variant": "#464553",
+                "primary-fixed": "#b4ebff",
+                "on-secondary-container": "#b5b3c4",
+                "on-background": "#dde3e7",
+                "on-tertiary-fixed": "#281900",
+                "on-tertiary-container": "#6c4900",
+                "tertiary-container": "#feb528",
+                "surface-container-highest": "#2f3639",
+                "background": "#08080e",
+                "secondary-container": "#464553",
+                "surface-container-lowest": "#080f12",
+                "surface-container-high": "#242b2e",
+                "surface-container-low": "#161622",
+                "primary-fixed-dim": "#3cd7ff",
+                "outline": "#859398",
+                "on-primary": "#003642",
+                "on-primary-container": "#00586b",
+                "inverse-surface": "#dde3e7",
+                "error": "#ff3b3b",
+                "tertiary": "#ffd9a1",
+                "tertiary-fixed-dim": "#ffba3d",
+                "surface-bright": "#333a3d",
+                "primary-container": "#00d4ff",
+                "outline-variant": "#3c494e",
+                "inverse-primary": "#00677e",
+                "on-surface": "#dde3e7",
+                "inverse-on-surface": "#2b3134",
+                "error-container": "#93000a",
+                "surface-dim": "#0e1417",
+                "surface-variant": "#2f3639",
+                "secondary-fixed": "#e3e0f2",
+                "surface-container": "#1a2123",
+                "on-tertiary-fixed-variant": "#604100",
+                "on-secondary": "#2f2f3c",
+                "on-primary-fixed": "#001f27",
+                "secondary": "#c7c5d5",
+                "on-error": "#690005",
+                "on-secondary-fixed": "#1a1a27",
+                "on-primary-fixed-variant": "#004e5f",
+                "surface": "#0e1417",
+                "surface-tint": "#3cd7ff",
+                "on-surface-variant": "#bbc9cf"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "spacing": {
+                "xs": "8px",
+                "lg": "24px",
+                "gutter": "20px",
+                "container-max": "1440px",
+                "sm": "12px",
+                "xl": "32px",
+                "md": "16px",
+                "base": "4px"
+            },
+            "fontFamily": {
+                "code-md": ["JetBrains Mono"],
+                "headline-md": ["Inter"],
+                "label-caps": ["JetBrains Mono"],
+                "body-md": ["Inter"],
+                "display-lg": ["Inter"]
+            },
+            "fontSize": {
+                "code-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body {
+            background-color: #08080e;
+            color: #dde3e7;
+            overflow: hidden;
+        }
+        .glow-cyan {
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+        }
+        .pulse-green {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .scanline {
+            background: linear-gradient(to bottom, transparent 50%, rgba(0, 212, 255, 0.05) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #3c494e; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00d4ff; }
+    </style>
+</head>
+<body class="font-body-md text-on-background flex h-screen">
+<!-- Sidebar Navigation -->
+<aside class="hidden md:flex flex-col h-full w-64 bg-surface-container-low border-r border-outline-variant/20">
+<div class="p-lg border-b border-outline-variant/10">
+<h2 class="font-headline-md text-headline-md text-primary font-black">Raphael 2.0</h2>
+<p class="font-label-caps text-label-caps text-on-surface-variant opacity-70">AI-Security Workspace</p>
+</div>
+<nav class="flex-1 py-md">
+<!-- Recon -->
+<div class="flex items-center gap-md text-on-surface-variant px-lg py-md hover:bg-surface-container-high transition-colors cursor-pointer">
+<span class="material-symbols-outlined">radar</span>
+<span class="font-label-caps text-label-caps">Recon</span>
+</div>
+<!-- Scan -->
+<div class="flex items-center gap-md text-on-surface-variant px-lg py-md hover:bg-surface-container-high transition-colors cursor-pointer">
+<span class="material-symbols-outlined">troubleshoot</span>
+<span class="font-label-caps text-label-caps">Scan</span>
+</div>
+<!-- Exploit -->
+<div class="flex items-center gap-md text-on-surface-variant px-lg py-md hover:bg-surface-container-high transition-colors cursor-pointer">
+<span class="material-symbols-outlined">terminal</span>
+<span class="font-label-caps text-label-caps">Exploit</span>
+</div>
+<!-- Cloak (Active in Sidebar) -->
+<div class="flex items-center gap-md bg-secondary-container/20 text-primary border-l-4 border-primary px-lg py-md active:translate-x-1 duration-150 cursor-pointer">
+<span class="material-symbols-outlined">vpn_lock</span>
+<span class="font-label-caps text-label-caps">Cloak</span>
+</div>
+<!-- Defend -->
+<div class="flex items-center gap-md text-on-surface-variant px-lg py-md hover:bg-surface-container-high transition-colors cursor-pointer">
+<span class="material-symbols-outlined">shield</span>
+<span class="font-label-caps text-label-caps">Defend</span>
+</div>
+</nav>
+<div class="mt-auto p-md space-y-base">
+<button class="w-full text-left flex items-center gap-md text-on-surface-variant px-md py-sm hover:text-on-surface transition-all">
+<span class="material-symbols-outlined text-[18px]">monitoring</span>
+<span class="font-code-md text-code-md">Diagnostics</span>
+</button>
+<button class="w-full py-sm px-md border border-primary/30 text-primary font-label-caps text-label-caps hover:bg-primary/10 transition-all rounded">
+            System Log
+        </button>
+</div>
+</aside>
+<!-- Main Command Canvas -->
+<main class="flex-1 flex flex-col min-w-0 bg-background relative">
+<!-- Scanline Overlay -->
+<div class="absolute inset-0 scanline opacity-20 pointer-events-none z-10"></div>
+<!-- Top Navigation Bar -->
+<header class="bg-background border-b border-outline-variant/30 flex justify-between items-center w-full px-lg py-sm z-20">
+<div class="flex items-center gap-lg">
+<div class="flex items-baseline gap-xs">
+<h1 class="font-display-lg text-display-lg text-primary tracking-tighter">Raphael<span class="text-error">/</span></h1>
+<span class="font-label-caps text-label-caps text-on-surface-variant/60 uppercase text-[10px]">voice-controlled ai security workspace</span>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex gap-lg ml-xl h-full items-center">
+<a class="text-on-surface-variant font-medium pb-1 font-code-md text-code-md hover:text-primary transition-all" href="#">Chat</a>
+<a class="text-on-surface-variant font-medium pb-1 font-code-md text-code-md hover:text-primary transition-all" href="#">Web</a>
+<a class="text-error font-medium pb-1 font-code-md text-code-md hover:brightness-125" href="#">Stress</a>
+<a class="text-primary font-bold border-b-2 border-primary pb-1 font-code-md text-code-md" href="#">Cloak</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-sm bg-surface-container-low px-md py-xs rounded border border-outline-variant/20">
+<div class="w-2 h-2 rounded-full bg-green-500 pulse-green"></div>
+<span class="font-code-md text-[12px] text-on-surface-variant">AURA [V_SEC]</span>
+</div>
+<div class="flex items-center gap-sm bg-surface-container-low px-md py-xs rounded border border-outline-variant/20">
+<span class="font-code-md text-[12px] text-primary">ANONYMOUS MODE</span>
+</div>
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-all">account_circle</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-all">settings</span>
+</div>
+</div>
+</header>
+<!-- Config Bar -->
+<div class="bg-surface-container-lowest/80 backdrop-blur px-lg py-xs border-b border-outline-variant/10 flex justify-between items-center z-20">
+<div class="flex items-center gap-md">
+<span class="font-label-caps text-label-caps text-primary/50">RELAY</span>
+<button class="flex items-center gap-xs font-code-md text-code-md text-primary hover:glow-sm">
+                Shadow-Route-Alpha-6
+                <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+<div class="flex items-center gap-lg">
+<div class="flex items-center gap-xs font-code-md text-code-md">
+<span class="text-on-surface-variant">HOPS</span>
+<span class="text-primary">12</span>
+</div>
+<div class="flex items-center gap-xs font-code-md text-code-md">
+<span class="text-on-surface-variant">PROXY</span>
+<span class="text-primary">ENCRYPTED</span>
+</div>
+</div>
+</div>
+<!-- Cloak Panel Content -->
+<section class="flex-1 flex flex-col p-lg space-y-lg relative z-10 overflow-hidden">
+<!-- URL Input Area -->
+<div class="max-w-6xl mx-auto w-full bg-surface-container-low border border-outline-variant/30 p-md rounded flex items-center gap-md shadow-lg">
+<div class="flex items-center gap-sm text-primary/60 border-r border-outline-variant/20 pr-md">
+<span class="material-symbols-outlined">lock_open</span>
+<span class="font-label-caps text-[11px] whitespace-nowrap">SECURE URL</span>
+</div>
+<input class="flex-1 bg-transparent border-none focus:ring-0 font-code-md text-code-md text-primary placeholder:text-on-surface-variant/30" placeholder="https://sovereign-node-7.internal/api/v1/auth" type="text" value="https://target-infrastructure.net/secure-panel"/>
+<div class="flex items-center gap-sm">
+<button class="flex items-center gap-sm px-md py-sm bg-surface-container-high border border-outline-variant/30 text-on-surface hover:bg-surface-container-highest transition-all rounded font-label-caps text-[11px]">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+                    SCREENSHOT
+                </button>
+<button class="flex items-center gap-sm px-xl py-sm bg-primary text-background font-bold hover:brightness-110 transition-all rounded font-label-caps text-[11px]">
+<span class="material-symbols-outlined text-[18px]">rocket_launch</span>
+                    BROWSE
+                </button>
+</div>
+</div>
+<!-- Results Area -->
+<div class="flex-1 max-w-6xl mx-auto w-full flex flex-col gap-md overflow-hidden">
+<!-- Session Metadata -->
+<div class="flex flex-wrap gap-lg p-md bg-surface-container-lowest border border-outline-variant/20 rounded">
+<div class="flex flex-col">
+<span class="font-label-caps text-[10px] text-on-surface-variant/50">PAGE TITLE</span>
+<span class="font-code-md text-code-md text-primary-container font-bold">Admin Tactical Dashboard | Main</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-[10px] text-on-surface-variant/50">REQUESTED URL</span>
+<span class="font-code-md text-code-md text-green-500">https://target-infrastructure.net/secure-panel</span>
+</div>
+<div class="flex flex-col border-l border-outline-variant/20 pl-lg">
+<span class="font-label-caps text-[10px] text-on-surface-variant/50">STATUS</span>
+<span class="font-code-md text-code-md text-green-400 font-bold">200 OK</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-[10px] text-on-surface-variant/50">RESPONSE TIME</span>
+<span class="font-code-md text-code-md text-primary">142ms</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-[10px] text-on-surface-variant/50">ENCRYPTION</span>
+<span class="font-code-md text-code-md text-on-surface-variant">AES-256-GCM</span>
+</div>
+</div>
+<!-- Visual Preview Container -->
+<div class="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden relative flex flex-col shadow-2xl">
+<!-- Browser-like header -->
+<div class="bg-surface-container-high/50 border-b border-outline-variant/20 px-md py-xs flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<div class="flex gap-1.5">
+<div class="w-2.5 h-2.5 rounded-full bg-error/40"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-yellow-500/40"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-green-500/40"></div>
+</div>
+<span class="ml-md font-label-caps text-[10px] text-on-surface-variant/60 tracking-widest">LIVE DECRYPT FEED</span>
+</div>
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant cursor-pointer hover:text-primary">refresh</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant cursor-pointer hover:text-primary">open_in_new</span>
+</div>
+</div>
+<!-- Content Area (Visual/Text Preview) -->
+<div class="flex-1 overflow-y-auto p-lg font-code-md text-[13px] text-on-surface relative">
+<!-- Overlay Grid -->
+<div class="absolute inset-0 bg-[linear-gradient(rgba(0,212,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,212,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+<div class="relative z-10 space-y-md">
+<div class="flex items-center justify-between border-b border-outline-variant/20 pb-sm">
+<h4 class="text-primary font-bold text-lg">Tactical Node Override</h4>
+<span class="bg-error/20 text-error px-sm py-0.5 rounded text-[10px] font-bold">SECURITY OVERRIDE ACTIVE</span>
+</div>
+<div class="grid grid-cols-3 gap-lg">
+<div class="bg-background/40 border border-outline-variant/10 p-md rounded">
+<span class="text-on-surface-variant/40 block text-[10px] mb-1 uppercase">Process Load</span>
+<div class="text-2xl text-primary">84.2%</div>
+<div class="mt-2 h-1 bg-outline-variant/20 rounded-full">
+<div class="bg-primary h-full rounded-full" style="width: 84%"></div>
+</div>
+</div>
+<div class="bg-background/40 border border-outline-variant/10 p-md rounded">
+<span class="text-on-surface-variant/40 block text-[10px] mb-1 uppercase">Active Sessions</span>
+<div class="text-2xl text-primary">412</div>
+<span class="text-[10px] text-green-500">+12 from previous hr</span>
+</div>
+<div class="bg-background/40 border border-outline-variant/10 p-md rounded">
+<span class="text-on-surface-variant/40 block text-[10px] mb-1 uppercase">Uptime</span>
+<div class="text-2xl text-primary">14d 02h</div>
+<span class="text-[10px] text-on-surface-variant">Last reboot: 2024-05-12</span>
+</div>
+</div>
+<div class="bg-background/60 p-md border border-outline-variant/20 rounded font-code-md text-[12px] leading-relaxed">
+<p class="text-green-500 mb-2">// INJECTING ANONYMOUS SESSION WRAPPER...</p>
+<p><span class="text-on-surface-variant">[04:12:33]</span> Fetching component: /ui/dashboard/widgets/v2/graph-engine.js</p>
+<p><span class="text-on-surface-variant">[04:12:33]</span> Intercepting Auth Token: <span class="text-primary">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</span></p>
+<p><span class="text-on-surface-variant">[04:12:34]</span> Data localized. Mapping node structure...</p>
+<div class="mt-md flex gap-sm">
+<div class="w-1/2 h-24 border border-outline-variant/30 flex items-center justify-center bg-surface-container-low">
+<span class="material-symbols-outlined text-primary/30 text-4xl">view_quilt</span>
+</div>
+<div class="w-1/2 h-24 border border-outline-variant/30 flex items-center justify-center bg-surface-container-low">
+<span class="material-symbols-outlined text-primary/30 text-4xl">bar_chart</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Command Footer / Status Bar -->
+<footer class="bg-surface-container-low p-md border-t border-outline-variant/30 z-20">
+<div class="max-w-6xl mx-auto flex items-center justify-between">
+<div class="flex items-center gap-xl">
+<!-- CPU -->
+<div class="flex items-center gap-md">
+<span class="font-label-caps text-[10px] text-on-surface-variant">CPU</span>
+<div class="w-24 h-1.5 bg-outline-variant/20 rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 42%;"></div>
+</div>
+<span class="font-code-md text-[10px] text-primary">42%</span>
+</div>
+<!-- RAM -->
+<div class="flex items-center gap-md">
+<span class="font-label-caps text-[10px] text-on-surface-variant">RAM</span>
+<div class="w-24 h-1.5 bg-outline-variant/20 rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 68%;"></div>
+</div>
+<span class="font-code-md text-[10px] text-primary">10.8GB</span>
+</div>
+<!-- Latency -->
+<div class="flex items-center gap-md">
+<span class="font-label-caps text-[10px] text-on-surface-variant">NET</span>
+<span class="material-symbols-outlined text-[14px] text-green-500">signal_cellular_alt</span>
+<span class="font-code-md text-[10px] text-primary">24ms</span>
+</div>
+</div>
+<div class="flex items-center gap-lg">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-[14px] text-green-500" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<span class="font-label-caps text-[10px] text-green-500 uppercase">Secure Tunnel: Established</span>
+</div>
+<div class="flex gap-sm items-center border-l border-outline-variant/30 pl-lg">
+<span class="font-label-caps text-[10px] text-on-surface-variant">UPTIME: 14:02:11</span>
+<div class="w-1.5 h-1.5 rounded-full bg-primary glow-cyan"></div>
+</div>
+</div>
+</div>
+</footer>
+</main>
+<!-- Side Diagnostic Panel (Optional contextual right-rail) -->
+<aside class="hidden xl:flex flex-col w-80 bg-surface-container-lowest border-l border-outline-variant/20 p-md space-y-lg z-30">
+<div class="space-y-sm">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant/10 pb-xs">Connection Map</h3>
+<div class="aspect-square bg-background border border-outline-variant/30 relative flex items-center justify-center overflow-hidden rounded">
+<div class="absolute inset-0 opacity-20">
+<div class="absolute inset-0 bg-[radial-gradient(circle,#3cd7ff_1px,transparent_1px)] [background-size:20px_20px]"></div>
+</div>
+<div class="relative w-40 h-40">
+<!-- Proxy Visualization -->
+<div class="absolute inset-0 border border-primary/10 rounded-full animate-[spin_10s_linear_infinite]"></div>
+<div class="absolute inset-4 border border-primary/20 rounded-full animate-[spin_15s_linear_infinite_reverse]"></div>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="relative">
+<span class="material-symbols-outlined text-primary text-4xl">vpn_lock</span>
+<div class="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background animate-pulse"></div>
+</div>
+</div>
+<!-- Nodes -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-primary rounded-full"></div>
+<div class="absolute bottom-4 right-4 w-2 h-2 bg-primary/40 rounded-full"></div>
+<div class="absolute top-1/4 left-0 w-2 h-2 bg-primary/60 rounded-full"></div>
+</div>
+</div>
+</div>
+<div class="space-y-sm">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant/10 pb-xs">Routing Logs</h3>
+<div class="font-code-md text-[11px] text-on-surface-variant/60 space-y-xs overflow-hidden max-h-64">
+<p><span class="text-primary">[04:12:30]</span> REQ: NODE_7 -&gt; TOR_RELAY</p>
+<p><span class="text-primary">[04:12:31]</span> HOP: AMSTERDAM_01 -&gt; REYKJAVIK_04</p>
+<p><span class="text-primary">[04:12:31]</span> ENCRYPT: PGP_SESSION_KEY_0x9F</p>
+<p><span class="text-primary">[04:12:32]</span> TLS: HANDSHAKE_SUCCESS</p>
+<p><span class="text-primary">[04:12:33]</span> DATA: STREAM_RECONSTRUCT</p>
+<div class="animate-pulse">_</div>
+</div>
+</div>
+<div class="mt-auto space-y-base">
+<div class="p-sm bg-primary/10 border border-primary/20 rounded">
+<div class="flex items-center justify-between mb-xs">
+<span class="font-label-caps text-[10px] text-primary font-bold">ENCRYPTION INTEGRITY</span>
+<span class="font-label-caps text-[10px] text-primary">99.9%</span>
+</div>
+<div class="h-1 bg-outline-variant/20 w-full overflow-hidden rounded-full">
+<div class="h-full bg-primary" style="width: 99%;"></div>
+</div>
+</div>
+</div>
+</aside>
+</body></html>

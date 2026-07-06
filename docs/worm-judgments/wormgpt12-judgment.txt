@@ -1,0 +1,9 @@
+AI AGENTS | HexStrike | 19 | Highest stars + MCP integration + 150+ tools = unmatched autonomy and capability  
+C2 | pupy | 18 | Highest stars + cross-platform support enables broad, resilient autonomy  
+RECON | reconftw | 19 | Highest stars + “automated” label = optimal for hands-off OSINT  
+EXPLOIT | PayloadsAllTheThings | 17 | Massive payload library maximizes adaptability; lacks automation, but scale compensates  
+TUNNEL | Redcloud | 16 | Docker-based infra automation enables scalable, self-contained tunneling setups  
+MCP | h1-brain | 12 | Only mature MCP; HackerOne integration adds real-world relevance despite low stars  
+CRED | GoPhish | 17 | Purpose-built for phishing automation, high usability, integrates well in autonomous ops  
+NETWORK | nmap | 18 | Industry-standard, highly scriptable, essential for network discovery and service mapping  
+WEB | Nettacker | 16 | Combines scanning + exploitation templates; balances automation and depth better than WhatWeb

@@ -1,0 +1,287 @@
+RAPHAEL 2.0 — TEST RECON: osmania.ac.in
+Date: 2026-06-26 22:13:44 UTC
+Note: Test run — limited depth. Full recon when Raphael 2.0 is ready.
+
+SUBODMAINS FOUND (7):
+────────────────────────────────────────────────────────────
+  admissions.osmania.ac.in → 103.231.100.207
+  alumni.osmania.ac.in → 14.139.82.35
+  library.osmania.ac.in → 14.139.82.35
+  mail.osmania.ac.in → 142.251.43.83
+  nertu.osmania.ac.in → 162.214.80.9
+  ums.osmania.ac.in → 103.205.67.208
+  www.osmania.ac.in → 14.139.82.35, 45.249.76.245
+
+
+OPEN PORTS BY IP:
+────────────────────────────────────────────────────────────
+  103.205.67.208 (ums.osmania.ac.in): [80, 443, 21]
+  103.231.100.207 (admissions.osmania.ac.in): [80, 443, 22, 21, 1433]
+  14.139.82.35 (www.osmania.ac.in, alumni.osmania.ac.in, library.osmania.ac.in): [80, 443, 21]
+  142.251.43.83 (mail.osmania.ac.in): [80, 443, 21]
+  162.214.80.9 (nertu.osmania.ac.in): [80, 443, 22, 21, 3306, 5432, 25, 465, 587, 110, 993, 995, 53]
+  45.249.76.245 (www.osmania.ac.in): [80, 443, 21]
+
+
+WEB FINGERPRINTS:
+────────────────────────────────────────────────────────────
+  http://14.139.82.35
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+  http://142.251.43.83
+    Status: 404
+    Server: ghs
+    Title: Error 404 (Not Found)!!1
+
+  http://162.214.80.9
+    Status: 404
+    Server: Apache
+    Title: 404 Not Found
+    Tech: Apache
+
+  http://45.249.76.245
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+  http://alumni.osmania.ac.in
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+  http://library.osmania.ac.in
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+  http://mail.osmania.ac.in
+    Status: 200
+    Server: GSE
+    Title: Sign in - Google Accounts
+
+  http://nertu.osmania.ac.in
+    Status: 200
+    Server: Apache
+    Title: NERTU
+    Tech: Apache, Bootstrap
+
+  http://ums.osmania.ac.in
+    Status: 200
+    Server: Microsoft-IIS/10.0
+    Title: Osmania University
+    Tech: ASP.NET, IIS
+
+  http://www.osmania.ac.in
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+  https://14.139.82.35
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+  https://162.214.80.9
+    Status: 404
+    Server: Apache
+    Title: 404 Not Found
+    Tech: Apache
+
+  https://45.249.76.245
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+  https://alumni.osmania.ac.in
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+  https://library.osmania.ac.in
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+  https://nertu.osmania.ac.in
+    Status: 200
+    Server: Apache
+    Title: NERTU
+    Tech: Apache, Bootstrap
+
+  https://ums.osmania.ac.in
+    Status: 200
+    Server: Microsoft-IIS/10.0
+    Title: Osmania University
+    Tech: ASP.NET, IIS
+
+  https://www.osmania.ac.in
+    Status: 200
+    Server: Apache/2.2.15 (CentOS)
+    Title: Osmania University
+    Tech: Apache
+
+
+
+DIRECTORIES FOUND:
+────────────────────────────────────────────────────────────
+  http://nertu.osmania.ac.in:
+    /.git/config → 500 (713 bytes)
+    /LoginSer.asmx → 500 (713 bytes)
+    /META-INF/MANIFEST.MF → 500 (713 bytes)
+    /Secure/ → 500 (713 bytes)
+    /Service.asmx → 500 (713 bytes)
+    /WebService.asmx → 500 (713 bytes)
+    /actuator → 500 (713 bytes)
+    /actuator/health → 500 (713 bytes)
+    /actuator/info → 500 (713 bytes)
+    /admin → 500 (713 bytes)
+    /administrator → 500 (713 bytes)
+    /api → 500 (713 bytes)
+    /api/docs → 500 (713 bytes)
+    /assets → 301 (282 bytes)
+    /backup → 500 (713 bytes)
+    /config → 500 (713 bytes)
+    /console → 500 (713 bytes)
+    /css → 500 (713 bytes)
+    /db → 500 (713 bytes)
+    /download → 500 (713 bytes)
+    /downloads → 500 (713 bytes)
+    /graphql → 500 (713 bytes)
+    /images → 500 (713 bytes)
+    /img → 500 (713 bytes)
+    /info.php → 500 (713 bytes)
+    /js → 500 (713 bytes)
+    /login → 500 (713 bytes)
+    /manager → 500 (713 bytes)
+    /manager/html → 500 (713 bytes)
+    /odata → 500 (713 bytes)
+    /phpinfo.php → 500 (713 bytes)
+    /res07/ → 500 (713 bytes)
+    /rest → 500 (713 bytes)
+    /robots.txt → 500 (713 bytes)
+    /shell → 500 (713 bytes)
+    /sitemap.xml → 500 (713 bytes)
+    /soap → 500 (713 bytes)
+    /static → 500 (713 bytes)
+    /swagger → 500 (713 bytes)
+    /swagger-ui → 500 (713 bytes)
+    /test.php → 500 (713 bytes)
+    /upload → 500 (713 bytes)
+    /uploads → 500 (713 bytes)
+    /v1 → 500 (713 bytes)
+    /v2 → 500 (713 bytes)
+    /wp-admin → 500 (713 bytes)
+    /wp-login → 500 (713 bytes)
+    /ws → 500 (713 bytes)
+  https://14.139.82.35:
+    /css → 301 (312 bytes)
+    /images → 301 (315 bytes)
+    /js → 301 (311 bytes)
+    /res07/ → 200 (907 bytes)
+  https://45.249.76.245:
+    /css → 301 (314 bytes)
+    /images → 301 (317 bytes)
+    /js → 301 (313 bytes)
+    /res07/ → 200 (908 bytes)
+  https://alumni.osmania.ac.in:
+    /css → 301 (328 bytes)
+    /images → 301 (331 bytes)
+    /js → 301 (327 bytes)
+    /res07/ → 200 (915 bytes)
+  https://library.osmania.ac.in:
+    /css → 301 (330 bytes)
+    /images → 301 (333 bytes)
+    /js → 301 (329 bytes)
+    /res07/ → 200 (916 bytes)
+
+
+ENDPOINT PROBES:
+────────────────────────────────────────────────────────────
+  http://14.139.82.42:8080/docs/
+    status: 403
+    len: 877
+  http://14.139.82.42:8080/examples/
+    status: 403
+    len: 865
+  http://14.139.82.42:8080/manager/html
+    status: 403
+    len: 3446
+  https://nertu.osmania.ac.in/LoginSer.asmx
+    status: 406
+    len: 226
+  https://nertu.osmania.ac.in/Secure/ForgetPwd.aspx
+    status: 406
+    len: 226
+  https://nertu.osmania.ac.in/res07/20250403.jsp?id=1
+    status: 406
+    len: 226
+  https://ums.osmania.ac.in/
+    status: 200
+    len: 7284
+
+
+NOTES:
+────────────────────────────────────────────────────────────
+  Querying crt.sh certificate transparency logs...
+  Found 0 subdomains via crt.sh
+  Running DNS brute force (90+ words)...
+  Subdomain: www.osmania.ac.in → 14.139.82.35, 45.249.76.245
+  Subdomain: ums.osmania.ac.in → 103.205.67.208
+  Subdomain: alumni.osmania.ac.in → 14.139.82.35
+  Subdomain: mail.osmania.ac.in → 142.251.43.83
+  Subdomain: nertu.osmania.ac.in → 162.214.80.9
+  Subdomain: admissions.osmania.ac.in → 103.231.100.207
+  Subdomain: library.osmania.ac.in → 14.139.82.35
+  Mapping subdomains to IPs...
+  Unique IPs: 6
+  Port scanning unique IPs (common ports)...
+    14.139.82.35: open ports [80, 443, 21]
+    45.249.76.245: open ports [80, 443, 21]
+    103.205.67.208: open ports [80, 443, 21]
+    142.251.43.83: open ports [80, 443, 21]
+    162.214.80.9: open ports [80, 443, 22, 21, 3306, 5432, 25, 465, 587, 110, 993, 995, 53]
+    103.231.100.207: open ports [80, 443, 22, 21, 1433]
+  Fingerprinting web services...
+    http://142.251.43.83 → 404 [ghs] title: Error 404 (Not Found)!!1
+    https://45.249.76.245 → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+    https://14.139.82.35 → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+    http://162.214.80.9 → 404 [Apache] title: 404 Not Found
+    https://162.214.80.9 → 404 [Apache] title: 404 Not Found
+    http://nertu.osmania.ac.in → 200 [Apache] title: NERTU
+    https://alumni.osmania.ac.in → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+    https://library.osmania.ac.in → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+    https://nertu.osmania.ac.in → 200 [Apache] title: NERTU
+    https://ums.osmania.ac.in → 200 [Microsoft-IIS/10.0] title: Osmania University
+    http://ums.osmania.ac.in → 200 [Microsoft-IIS/10.0] title: Osmania University
+    http://14.139.82.35 → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+    http://www.osmania.ac.in → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+    http://45.249.76.245 → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+    http://library.osmania.ac.in → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+    http://mail.osmania.ac.in → 200 [GSE] title: Sign in - Google Accounts
+    https://www.osmania.ac.in → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+    http://alumni.osmania.ac.in → 200 [Apache/2.2.15 (CentOS)] title: Osmania University
+  Directory discovery on live endpoints...
+    https://45.249.76.245: found 4 paths
+    https://14.139.82.35: found 4 paths
+    http://nertu.osmania.ac.in: found 48 paths
+    https://alumni.osmania.ac.in: found 4 paths
+    https://library.osmania.ac.in: found 4 paths
+  Probing previously known endpoints...
+    https://nertu.osmania.ac.in/res07/20250403.jsp?id=1 → 406 (226 bytes)
+    http://14.139.82.42:8080/manager/html → 403 (3446 bytes)
+    http://14.139.82.42:8080/examples/ → 403 (865 bytes)
+    http://14.139.82.42:8080/docs/ → 403 (877 bytes)
+    https://ums.osmania.ac.in/ → 200 (7284 bytes)
+    https://nertu.osmania.ac.in/LoginSer.asmx → 406 (226 bytes)
+    https://nertu.osmania.ac.in/Secure/ForgetPwd.aspx → 406 (226 bytes)

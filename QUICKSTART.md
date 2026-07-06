@@ -18,7 +18,7 @@ Rebuild from scratch in <30 minutes.
 ## 2. Clone
 
 ```bash
-git clone git@github.com:The-Despicable/raphael-autonomous.git raphael-2.0
+git clone git@github.com:The-Despicable/raphael-2.0.git raphael-2.0
 cd raphael-2.0
 ```
 
