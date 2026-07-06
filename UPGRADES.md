@@ -690,6 +690,150 @@ def build_agent(c2_url: str, interval: int, sandbox_avoid: bool) -> bytes:
 
 ---
 
+## P8 — Centralized Kali Tools Sidecar
+
+**Status: 🔲 Planned — add after WSL reinstall**
+
+Every container currently installs its own copy of nmap, nuclei, whatweb, sqlmap, hashcat, subfinder — the same 5 tools duplicated across 3+ images each. A single Kali sidecar eliminates all duplication and unlocks 600+ tools from the Kali repos.
+
+### 8a — New Service: `kali-tools`
+
+Add to `docker-compose.yml`:
+
+```yaml
+kali-tools:
+  build:
+    context: ./kali-tools
+    dockerfile: Dockerfile
+  image: raphael/kali-tools:latest
+  container_name: kali-tools
+  hostname: kali-tools
+  networks: [raphael-net]
+  ports:
+    - "3800:3800"
+  cap_add:
+    - NET_RAW
+    - NET_ADMIN
+    - SYS_PTRACE
+  volumes:
+    - ./orchestrator:/raphael/orchestrator:ro
+    - ./data:/raphael/data
+    - ./wordlists:/raphael/wordlists:ro
+  environment:
+    - TOOLS_PORT=3800
+    - TZ=UTC
+  restart: unless-stopped
+```
+
+### 8b — Dockerfile
+
+```dockerfile
+FROM kalilinux/kali-rolling
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Recon
+    nmap masscan dnsutils whois netcat-openbsd \
+    enum4linux smbclient smbmap \
+    # Web
+    gobuster ffuf dirb nikto wfuzz \
+    whatweb wapiti \
+    # Exploitation
+    metasploit-framework \
+    sqlmap \
+    # AD / Windows
+    impacket-scripts bloodhound.py certipy-ad \
+    kerberoast krb5-user \
+    # Cracking
+    hashcat john \
+    # Post-exploitation
+    netcat-traditional socat \
+    # Utilities
+    python3 python3-pip curl wget git jq \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir \
+    fastapi uvicorn[standard] httpx \
+    pyyaml aiofiles
+
+COPY server.py /app/server.py
+WORKDIR /app
+EXPOSE 3800
+
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "3800"]
+```
+
+### 8c — `kali-tools/server.py`
+
+```python
+"""
+Lightweight FastAPI wrapper that exposes Kali tools as HTTP endpoints.
+Other containers call this instead of maintaining their own tool copies.
+"""
+import subprocess, shlex, os
+from fastapi import FastAPI, Query, HTTPException
+
+app = FastAPI()
+
+@app.post("/run")
+def run_tool(tool: str = Query(...), args: str = "", timeout: int = 300):
+    cmd = shlex.split(f"{tool} {args}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return {
+            "tool": tool,
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr
+        }
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Tool '{tool}' not found")
+    except subprocess.TimeoutExpired:
+        return {"tool": tool, "returncode": -1, "stdout": "", "stderr": "timed out"}
+
+@app.get("/tools")
+def list_tools():
+    return {"kali": True, "note": "All Kali tools available via /run?tool=<name>&args=..."}
+```
+
+### 8d — Migration Plan
+
+| Container | Remove | Replace With |
+|-----------|--------|-------------|
+| `cai-service` | nmap, whatweb, subfinder, nuclei, sqlmap, hashcat deps | `httpx.post("http://kali-tools:3800/run", ...)` |
+| `recon-pipeline` | nmap, whatweb, subfinder, nuclei, hashcat deps | Same |
+| `sword` | nmap, subfinder, nuclei, whatweb, sqlmap, hashcat deps | Same |
+
+Each of these currently has ~10-15 lines of `RUN apt-get install` + `RUN curl ... | tar` in their Dockerfile. After migration, those lines are deleted and the image shrinks by 200-400MB each.
+
+### 8e — Benefits
+
+- **Single tool source of truth** — update once in `kali-tools`, all containers get it
+- **600+ tools** — not just the 5 manually selected ones. `enum4linux`, `responder`, `searchsploit`, `metasploit`, `smbmap`, `gobuster`, `ffuf`, `dirb`, `nikto`... all available via the same API
+- **Smaller Python images** — no more bloated Python images with Go binaries, npm packages, and git clones
+- **Works offline** — Kali image is self-contained, no runtime downloads
+- **Cap_add isolation** — `NET_RAW`/`NET_ADMIN` only on kali-tools, not on every Python service
+
+### 8f — Risks
+
+- **Single point of failure** — if kali-tools goes down, all tool execution stops. Mitigation: implement `restart: unless-stopped` and healthcheck
+- **API latency** — HTTP call instead of local subprocess. Mitigation: negligible on internal Docker network (<1ms)
+- **Kali image size** — ~1-2GB. Mitigation: one image vs the aggregate of 5 tools across 3 images is roughly the same total disk
+
+### Files to create:
+- `kali-tools/Dockerfile`
+- `kali-tools/server.py`
+
+### Files to modify:
+- `docker-compose.yml` — add `kali-tools` service
+- `cai-service/Dockerfile` — remove nmap, whatweb, subfinder, nuclei, sqlmap, hashcat
+- `recon-pipeline/Dockerfile` — remove nmap, whatweb, subfinder, nuclei, hashcat
+- `sword/Dockerfile` — remove nmap, subfinder, nuclei, whatweb, sqlmap, hashcat
+- Phase executors that call tools directly → call `kali-tools:3800/run` instead
+
+**Status: 🔲 Planned — implement after WSL reinstall and basic connectivity test (P9 should validate this works)**
+
+---
+
 ## P9 — End-to-End Kill Chain Validation
 
 After implementing P0–P8, you need a repeatable test that proves the system actually compromises a target from start to finish.
