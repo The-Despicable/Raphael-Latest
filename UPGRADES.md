@@ -1017,7 +1017,417 @@ These are prompt decoration for the LLM, not operational code. Strip them to ~30
 
 ---
 
-## P8 — Security Hardening Before Real Use
+> **Note on P5/P6:** The exfil module (`orchestrator/exfil/`) and C2 channel (`orchestrator/c2_channel.py`) already exist with real code — DNS tunnel, SMTP tunnel, bulk HTTP exfil, bounceback, task polling, WebSocket, agent listing. The sections above should be treated as **hardening/integration specs** rather than ground-up builds. Focus on wiring them into the autonomous loop and adding the crypto + stealth layers.
+
+---
+
+## P11 — Web UI / Dashboard (Missing Entirely)
+
+There is zero visibility into what the system is doing without SSHing in and reading JSON files. No dashboard, no real-time monitoring, no visual engagement map.
+
+### Create `ui/` at project root
+
+```
+ui/
+├── Dockerfile          # Nginx + built React app
+├── src/
+│   ├── App.tsx
+│   ├── pages/
+│   │   ├── Dashboard.tsx       # Live engagement status, active agents, finding count
+│   │   ├── Target.tsx          # Target detail: ports, vulns, exploit chain graph
+│   │   ├── Graph.tsx           # Network topology visualization (vis.js)
+│   │   ├── Timeline.tsx        # Phase execution timeline
+│   │   ├── Agent.tsx           # Deployed agent management
+│   │   └── Settings.tsx        # API key management, model config
+│   ├── components/
+│   │   ├── PhaseCard.tsx       # Per-phase result card
+│   │   ├── FindingTable.tsx    # Sorted/filterable finding table
+│   │   ├── TopologyGraph.tsx   # Interactive network graph
+│   │   └── AgentList.tsx       # Connected agents
+│   └── api/
+│       └── client.ts           # Fetch wrapper for brain API
+└── package.json
+```
+
+### Backend API endpoints needed on brain:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /v1/ui/engagements` | List all engagements with status |
+| `GET /v1/ui/engagement/{id}` | Full engagement detail + findings |
+| `GET /v1/ui/findings?target=X` | All findings for a target |
+| `GET /v1/ui/topology/{target}` | Network graph data (hosts, ports, connections) |
+| `GET /v1/ui/agents` | Active C2 agents |
+| `WS /v1/ui/events` | Real-time event stream (new finding, phase complete, agent check-in) |
+
+### Real-time event stream
+
+```python
+# In orchestrator/brain/api.py
+connected_clients: set[WebSocket] = set()
+
+async def broadcast(event: dict):
+    dead = set()
+    for ws in connected_clients:
+        try:
+            await ws.send_json(event)
+        except:
+            dead.add(ws)
+    connected_clients -= dead
+
+@app.websocket("/v1/ui/events")
+async def ui_events(ws: WebSocket):
+    await ws.accept()
+    connected_clients.add(ws)
+    try:
+        while True:
+            await ws.receive_text()  # keepalive pong
+    except:
+        connected_clients.discard(ws)
+```
+
+Then instrument every phase executor to call `await broadcast({"type": "finding", "data": finding})` when a result comes in.
+
+### Files to create:
+- `ui/` — entire React frontend
+- `orchestrator/brain/api.py` — add `GET /v1/ui/*` endpoints + WebSocket event stream
+- `orchestrator/brain/events.py` — event bus for broadcasting state changes
+
+---
+
+## P12 — Multi-Target Orchestration
+
+Currently the brain handles one target at a time. No queue, no prioritization, no concurrent engagement isolation.
+
+### Create `orchestrator/brain/orchestrator.py`
+
+```python
+@dataclass
+class Engagement:
+    id: str
+    target: str
+    phases: list[str]
+    status: str  # "queued" | "running" | "paused" | "done" | "failed"
+    priority: int  # 0-100
+    created_at: float
+    started_at: float | None
+    results: dict
+    agent_id: str | None  # deployed agent on target
+
+class EngagementOrchestrator:
+    def __init__(self, max_concurrent: int = 3):
+        self.queue: list[Engagement] = []  # priority-sorted
+        self.active: dict[str, Engagement] = {}  # engagement_id -> running
+        self.history: list[Engagement] = []
+        self.max_concurrent = max_concurrent
+
+    async def enqueue(self, target: str, phases: list[str], priority: int = 50) -> str:
+        eid = hashlib.sha256(f"{target}:{time.time()}".encode()).hexdigest()[:12]
+        eng = Engagement(id=eid, target=target, phases=phases,
+                         status="queued", priority=priority, created_at=time.time())
+        insort(self.queue, eng, key=lambda e: -e.priority)
+        asyncio.create_task(self._scheduler())
+        return eid
+
+    async def _scheduler(self):
+        while len(self.active) < self.max_concurrent and self.queue:
+            eng = self.queue.pop(0)
+            eng.status = "running"
+            self.active[eng.id] = eng
+            asyncio.create_task(self._run(eng))
+
+    async def _run(self, eng: Engagement):
+        try:
+            result = await run_engagement(eng.target, eng.phases)
+            eng.results = result
+            eng.status = "done"
+        except Exception as e:
+            eng.status = "failed"
+        finally:
+            self.active.pop(eng.id, None)
+            self.history.append(eng)
+            asyncio.create_task(self._scheduler())  # process next in queue
+
+    def pause(self, eid: str) -> bool:
+        if eid in self.active:
+            self.active[eid].status = "paused"
+            return True
+        return False
+
+    def resume(self, eid: str) -> bool:
+        # find paused engagement and re-queue
+        ...
+
+    def status(self, eid: str = None) -> dict:
+        # return queue depth, active, history
+        ...
+```
+
+### API endpoints:
+
+```python
+@app.post("/v1/orchestrator/enqueue")
+async def enqueue_target(req: StartRequest):
+    eid = await orchestrator.enqueue(req.target, req.phases or PHASES, req.priority or 50)
+    return {"engagement_id": eid, "position": len(orchestrator.queue) + len(orchestrator.active)}
+
+@app.get("/v1/orchestrator/status")
+async def orchestrator_status():
+    return orchestrator.status()
+
+@app.post("/v1/orchestrator/pause/{eid}")
+async def pause_engagement(eid: str):
+    return {"paused": orchestrator.pause(eid)}
+
+@app.post("/v1/orchestrator/resume/{eid}")
+async def resume_engagement(eid: str):
+    return {"resumed": orchestrator.resume(eid)}
+```
+
+### Files to create/modify:
+- `orchestrator/brain/orchestrator.py` — new EngagementOrchestrator class
+- `orchestrator/brain/api.py` — add enqueue/pause/resume/status endpoints
+- `orchestrator/brain/neural_memory.py` — add engagement_id to episodic storage for isolation
+
+---
+
+## P13 — Secrets Management
+
+API keys are in plaintext `.env` files. If an attacker compromises any container, they get all API keys.
+
+### Fix: Encrypted `.env` + Vault
+
+**Option A — Lightweight: `env.enc` with age encryption**
+
+```bash
+# Generate key once
+age-keygen -o key.txt
+
+# Encrypt .env
+age -r $(cat key.txt | grep -oP 'age1\w+') -o env.enc .env
+
+# In entrypoint, decrypt before loading
+age -d -i /run/secrets/env-key /run/secrets/env.enc > .env
+source .env
+```
+
+**Option B — Full: HashiCorp Vault sidecar**
+
+```yaml
+# docker-compose.yml
+services:
+  vault:
+    image: hashicorp/vault:latest
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-only-token
+    cap_add:
+      - IPC_LOCK
+
+  autonomous-brain:
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: dev-only-token
+    # Read API keys from Vault at startup instead of .env
+```
+
+**Option C — Minimal: Per-service env with restricted volume mounts**
+
+Instead of one `.env` with all keys, split into per-service env files mounted read-only:
+
+```yaml
+services:
+  autonomous-brain:
+    env_file: ./secrets/brain.env  # Only brain API key + Tor
+  recon-pipeline:
+    env_file: ./secrets/recon.env  # Only Shodan + SpiderFoot
+  cai-service:
+    env_file: ./secrets/cai.env     # Only NVIDIA key
+```
+
+### Files to modify:
+- `docker-compose.yml` — split env files or add vault sidecar
+- Each service entrypoint — decrypt secrets before starting
+- `.env.example` — document the split approach
+
+---
+
+## P14 — Resilience & Circuit Breakers
+
+If a provider is down, the brain should gracefully degrade instead of hard-failing.
+
+### Add to `orchestrator/providers.py`
+
+```python
+class CircuitBreaker:
+    def __init__(self, name: str, failure_threshold: int = 3, recovery_timeout: int = 60):
+        self.name = name
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.failures = 0
+        self.last_failure = 0.0
+        self.state = "closed"  # closed | open | half-open
+
+    def call(self, fn, *args, **kwargs):
+        if self.state == "open":
+            if time.time() - self.last_failure > self.recovery_timeout:
+                self.state = "half-open"
+            else:
+                raise CircuitBreakerOpenError(f"{self.name} circuit is open")
+
+        try:
+            result = fn(*args, **kwargs)
+            self.failures = 0
+            self.state = "closed"
+            return result
+        except Exception as e:
+            self.failures += 1
+            self.last_failure = time.time()
+            if self.failures >= self.failure_threshold:
+                self.state = "open"
+                logger.warning(f"Circuit breaker {self.name} OPEN after {self.failures} failures")
+            raise
+
+# Per-provider breakers:
+BREAKERS = {
+    "nvidia": CircuitBreaker("nvidia", failure_threshold=5, recovery_timeout=120),
+    "ollama": CircuitBreaker("ollama", failure_threshold=3, recovery_timeout=30),
+    "omniroute": CircuitBreaker("omniroute", failure_threshold=2, recovery_timeout=300),
+}
+```
+
+### Graceful degradation cascade:
+
+```
+nvidia down  → try ollama → try omniroute → fall back to local LLM (if available) → degrade recon to pure nmap/sqlmap (no LLM analysis)
+recon down   → skip recon, use only what pre-existing data provides
+c2 down      → buffer results locally, retry on next heartbeat
+tor down     → refuse to run (no fallback from Tor — that's the point)
+```
+
+### Files to modify:
+- `orchestrator/providers.py` — add CircuitBreaker, wrap provider calls
+- `orchestrator/brain/api.py` — add `GET /v1/health` with breaker states
+
+---
+
+## P15 — API Authentication
+
+Currently a single static bearer token (`API_KEY=raphael-layer5-dev-key-2026`) with no rotation, no scoping, no per-operator identity.
+
+### Fix: Token-based auth with scopes
+
+```python
+# orchestrator/auth.py
+import os, hashlib, time, hmac
+
+API_KEYS = {}  # key_hash -> {"name": str, "scopes": list[str], "expires": float}
+
+def load_keys():
+    # Read from environment or mounted file
+    # Format: KEY_NAME=SCOPE1,SCOPE2|hex_encoded_key
+    for var, val in os.environ.items():
+        if var.startswith("RAPHAEL_KEY_"):
+            scopes, key = val.split("|", 1)
+            kh = hashlib.sha256(key.encode()).hexdigest()
+            API_KEYS[kh] = {"name": var, "scopes": scopes.split(","), "created": time.time()}
+
+SCOPES = {
+    "admin":     ["engagements:rw", "agents:rw", "findings:rw", "config:rw", "logs:rw"],
+    "operator":  ["engagements:rw", "agents:r",  "findings:rw", "config:r"],
+    "viewer":    ["engagements:r",  "findings:r"],
+    "agent":     ["agents:rw", "findings:w"],
+}
+
+def require_scope(*scopes: str):
+    async def dependency(authorization: str = Header(...)):
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(401)
+        key = authorization[7:]
+        kh = hashlib.sha256(key.encode()).hexdigest()
+        if kh not in API_KEYS:
+            raise HTTPException(401)
+        entry = API_KEYS[kh]
+        for needed in scopes:
+            if needed not in entry["scopes"]:
+                raise HTTPException(403)
+        return entry
+    return dependency
+```
+
+### Key rotation endpoint:
+
+```python
+@app.post("/v1/admin/rotate-key")
+async def rotate_key(key_name: str, admin=Depends(require_scope("config:rw"))):
+    new_key = secrets.token_hex(32)
+    kh = hashlib.sha256(new_key.encode()).hexdigest()
+    API_KEYS[kh] = {"name": key_name, "scopes": ["admin"], "created": time.time()}
+    # Old key remains valid until explicitly revoked
+    return {"key_name": key_name, "new_key": new_key, "old_key_expires": time.time() + 3600}
+```
+
+### Files to create/modify:
+- `orchestrator/auth.py` — new auth module with key loading + scope check
+- `orchestrator/brain/api.py` — add `Depends(require_scope(...))` to all endpoints
+- `.env.example` — document API key format: `RAPHAEL_KEY_OPERATOR=operator,engagements:rw,findings:rw|hexkey`
+
+---
+
+## P16 — Offline Mode
+
+The system assumes internet connectivity. If the internet goes down, the brain can't call NVIDIA API or Ollama cloud.
+
+### Fallback chain:
+
+```python
+# orchestrator/providers.py — add offline detection
+async def is_online() -> bool:
+    try:
+        async with httpx.AsyncClient() as c:
+            await c.get("https://1.1.1.1", timeout=2)
+        return True
+    except:
+        return False
+
+OFFLINE_FALLBACKS = {
+    "w12": WORKING_ALIASES.index("w12"),  # Local Ollama models
+    "w13": WORKING_ALIASES.index("w13"),
+    "w480b": WORKING_ALIASES.index("w480b"),
+}
+
+async def call_model(model, messages, **kw):
+    if not await is_online() and model not in OFFLINE_FALLBACKS:
+        # Force pick from local-only models
+        model = pick_model(..., OFFLINE_FALLBACKS)
+    ...
+```
+
+When offline:
+- Only local Ollama models work (worm models, gemma4 if cached)
+- Scanner wrappers (nmap, sqlmap, nuclei) still work — they don't need internet
+- C2 agent still works (calls home on LAN)
+- Recon without Shodan/SpiderFoot degrades to pure nmap/whatweb
+- Exfiltration queued locally, sent when connectivity resumes
+
+### Files to modify:
+- `orchestrator/providers.py` — add `is_online()` + offline model fallback
+- `orchestrator/brain/autonomous.py` — check connectivity before starting engagement
+
+---
+
+## Implementation Order (Updated)
+
+| Phase | Items | Effort |
+|-------|-------|--------|
+| **1. Foundation** | P0 (phase executors), P4 (finding types), P3 (fix LLM loop) | 3-5 days |
+| **2. Proxy** | P7 (anonymity overhaul) | 2-3 days |
+| **3. Containers** | P1 (Dockerfiles), P2 (fix post-ex) | 2-3 days |
+| **4. C2 + Agent** | P5 (wire C2 + crypto), P6 (implant) | 5-7 days |
+| **5. Multi-target + Resilience** | P12 (orchestrator), P14 (circuit breakers), P16 (offline) | 3-4 days |
+| **6. Dashboard** | P11 (UI + event stream) | 4-5 days |
+| **7. Security** | P8 (hardening), P13 (secrets), P15 (auth) | 2-3 days |
+| **8. Validation** | P9 (kill chain test), P10 (DB maintenance) | 3-4 days |
+| **Total** | | **~6-8 weeks** |
 
 Do NOT run this against real targets without:
 
