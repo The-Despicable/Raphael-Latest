@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+httpx
+pywinrm
+paramiko
+requests
+dnspython
+neo4j

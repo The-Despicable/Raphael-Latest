@@ -1,0 +1,42 @@
+server:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  log_level: "info"
+
+api_keys:
+  "raphael-admin-key-change-me":
+    scopes: ["*"]
+    rate_limit: 100
+  "raphael-readonly-key-change-me":
+    scopes: ["tools.list", "resources.list", "prompts.list"]
+    rate_limit: 30
+
+scope_rules:
+  - pattern: "^https?://[a-zA-Z0-9.-]+\\.example\\.com"
+    action: "allow"
+  - pattern: "^10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"
+    action: "allow"
+  - pattern: "^192\\.168\\.\\d{1,3}\\.\\d{1,3}"
+    action: "allow"
+  - pattern: ".*"
+    action: "deny"
+
+rate_limiting:
+  default_limit: 60
+  window_seconds: 60
+
+audit:
+  log_path: "logs/audit.log"
+  log_all_requests: true
+
+tools:
+  auto_discover: true
+  dirs:
+    - "tools/recon"
+    - "tools/web"
+    - "tools/exploit"
+    - "tools/c2"
+    - "tools/phishing"
+    - "tools/cloud"
+    - "tools/forensics"

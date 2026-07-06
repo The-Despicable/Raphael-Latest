@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  mcp-hub:
+    build: .
+    container_name: raphael-mcp-hub
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - raphael-net
+
+networks:
+  raphael-net:
+    name: raphael-2.0
+    external: true

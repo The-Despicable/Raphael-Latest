@@ -1,0 +1,249 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-host-config: &host-config
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+services:
+  cai-service:
+    build:
+      context: ./cai-service
+      dockerfile: Dockerfile
+    ports:
+      - "3201:3200"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=cai-service
+      - RAPHAEL_PATH=/raphael
+    volumes:
+      - ./orchestrator:/raphael/orchestrator
+      - /usr/bin/nmap:/usr/bin/nmap:ro
+    depends_on:
+      - tor-proxy
+    networks:
+      - raphael-net
+    logging: *default-logging
+    restart: unless-stopped
+    <<: *host-config
+
+  mhddos-service:
+    <<: *host-config
+    build:
+      context: ./mhddos-service
+      dockerfile: Dockerfile
+    ports:
+      - "3301:3300"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=mhddos-service
+      - TOR_PROXY=socks5h://tor-proxy:9050
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    depends_on:
+      - tor-proxy
+    networks:
+      - raphael-net
+    logging: *default-logging
+    restart: unless-stopped
+
+  cloak-service:
+    <<: *host-config
+    build:
+      context: ./cloak-service
+      dockerfile: Dockerfile
+    ports:
+      - "3401:3400"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=cloak-service
+      - TOR_PROXY=socks5://tor-proxy:9050
+      - TOR_CONTROL=tor-proxy:9051
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      - tor-proxy
+    networks:
+      - raphael-net
+    logging: *default-logging
+    restart: unless-stopped
+
+  c2-server:
+    <<: *host-config
+    build:
+      context: ./c2-server
+      dockerfile: Dockerfile
+    ports:
+      - "3501:3501"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=c2-server
+      - RAPHAEL_PATH=/raphael
+    volumes:
+      - ./orchestrator:/raphael/orchestrator
+    networks:
+      - raphael-net
+    logging: *default-logging
+    restart: unless-stopped
+
+  phishing:
+    <<: *host-config
+    build:
+      context: ./phishing
+      dockerfile: Dockerfile
+    ports:
+      - "3502:3502"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=phishing
+      - RAPHAEL_PATH=/raphael
+    volumes:
+      - ./orchestrator:/raphael/orchestrator
+    networks:
+      - raphael-net
+    logging: *default-logging
+    restart: unless-stopped
+
+  recon-pipeline:
+    <<: *host-config
+    build:
+      context: ./recon-pipeline
+      dockerfile: Dockerfile
+    ports:
+      - "3503:3503"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=recon-pipeline
+      - RAPHAEL_PATH=/raphael
+    volumes:
+      - ./orchestrator:/raphael/orchestrator
+      - case-data:/data
+    cap_add:
+      - NET_RAW
+    depends_on:
+      - tor-proxy
+    networks:
+      - raphael-net
+    logging: *default-logging
+    restart: unless-stopped
+
+  sword:
+    <<: *host-config
+    build:
+      context: .
+      dockerfile: ./sword/Dockerfile
+    ports:
+      - "3600:3600"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=sword
+    volumes:
+      - ./orchestrator:/app/orchestrator
+      - ./sword:/app/sword
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    depends_on:
+      - cai-service
+      - mhddos-service
+      - cloak-service
+      - c2-server
+      - phishing
+      - recon-pipeline
+      - tor-proxy
+    networks:
+      - raphael-net
+    logging: *default-logging
+    restart: unless-stopped
+
+  autonomous-brain:
+    <<: *host-config
+    build:
+      context: .
+      dockerfile: ./brain/Dockerfile
+    ports:
+      - "3700:3700"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=autonomous-brain
+      - OPENAI_BASE_URL=http://host.docker.internal:11434/v1
+      - BRAIN_DB=/data/brain.db
+      - TOR_SOCKS=tor-proxy:9050
+      - TOR_CONTROL=tor-proxy:9051
+    volumes:
+      - brain-data:/data
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      - tor-proxy
+    networks:
+      - raphael-net
+    logging: *default-logging
+    restart: unless-stopped
+
+  tor-proxy:
+    image: dperson/torproxy:latest
+    ports:
+      - "9050:9050"
+      - "9052:9051"
+    environment:
+      - PASSWORD=${TOR_CONTROL_PASS:-changeme}
+    networks:
+      raphael-net:
+        aliases:
+          - tor-proxy
+    logging: *default-logging
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5-community
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASS:-raphael-dev}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_pagecache_size=128M
+      - NEO4J_dbms_memory_heap_max__size=256M
+    volumes:
+      - neo4j-data:/data
+    networks:
+      raphael-net:
+        aliases:
+          - neo4j
+    logging: *default-logging
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  caido:
+    image: caido/caido:latest
+    ports:
+      - "48080:8080"
+    environment:
+      - CAIDO_PORT=8080
+    networks:
+      raphael-net:
+        aliases:
+          - caido
+    logging: *default-logging
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+networks:
+  raphael-net:
+    driver: bridge
+
+volumes:
+  brain-data:
+  case-data:
+  neo4j-data:

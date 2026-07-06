@@ -1,0 +1,72 @@
+## PortSwigger Web Security Academy — Key Findings for Raphael 2.0 Pipeline
+
+### XSS (Cross-Site Scripting)
+- 3 types: Reflected, Stored, DOM-based
+- 30 labs available. We have ZERO XSS detection in pipeline.
+- CSP bypass, dangling markup, polyglot payloads
+- **Gap**: Need XSS probe in exploit/postex phase
+
+### JWT Attacks
+- alg:none accepted (HelixSync A07-01 ✓)
+- RS256→HS256 algorithm confusion (HelixSync A07-02, verify.py FAILED — pyjwt patched)
+- JWK injection (embed own public key via jwk header)
+- kid parameter path traversal
+- Brute-force weak secrets via hashcat
+- **Gap**: Need JWK injection + kid traversal checks in pipeline
+
+### Insecure Deserialization
+- PHP/Java/Ruby/Python serialization formats
+- Gadget chains — reuse existing application code
+- Magic methods (__destruct, __wakeup, __reduce)
+- Pre-built chains: ysoserial (Java), PHPGGC, gadget-to-go (Go)
+- **Match**: HelixSync A08-01 Pickle RCE (verify.py PASSED ✓)
+- **Gap**: Need Java/PHP deserialization checks
+
+### SSTI (Server-Side Template Injection)
+- Detect via fuzzing: ${{<%[%'"}}%\ then math: ${7*7}
+- Template engines: Jinja2 (Python), Twig (PHP), Freemarker (Java), ERB (Ruby)
+- Decision tree to identify which engine
+- Exploit chain: read docs → explore environment → craft custom attack
+- **Match**: HelixSync A03-06 SSTI (verify.py PASSED ✓)
+- **Gap**: Need multi-engine detection (currently only checks Jinja2)
+
+### SSRF (Server-Side Request Forgery)
+- Against server (localhost/127.0.0.1) or back-end systems (private IPs)
+- Bypass blacklists: alternative IP formats, DNS rebinding, open redirect
+- Bypass whitelists: @ in URL, fragments, DNS hierarchy
+- Blind SSRF via Referer header, OAST
+- **Match**: HelixSync A10-01 SSRF (in vulnmap but not in verify.py)
+- **Gap**: Need OAST collaborator for blind SSRF detection
+
+### GraphQL API Vulnerabilities
+- Introspection enabled → full schema disclosure (HelixSync EX-04 ✓)
+- Unsanitized arguments → IDOR
+- Batching via aliases → bypass rate limiting (HelixSync EX-05)
+- CSRF over GraphQL
+- **Gap**: Need automatic introspection query + alias brute force
+
+### API Testing
+- RESTful + JSON APIs
+- Mass assignment (HelixSync A04-01, verify.py FAILED — needs proper auth first)
+- Hidden parameters via Intruder/Param Miner
+- Server-side parameter pollution
+- Content type switching (JSON ↔ XML) for WAF bypass
+- **Gap**: Need mass assignment + hidden param discovery
+
+### Pipeline Coverage Summary
+**Pattern Engine** (`sast/pattern_engine.py`): 11 pattern types
+- SQLi, XSS (expanded: reflected/stored/DOM), Command Injection, Path Traversal
+- Insecure Deserialization, Hardcoded Secret, Weak Crypto, No Input Validation
+- SSTI (new: Jinja2/Freemarker/Velocity/ERB multi-engine), CWE-94
+- SSRF (new: URL-based in source code), CWE-918
+- JWT Misconfiguration (new: library misuse detection), CWE-347
+
+**Payloads DB** (`exploit/payloads_db.py`): 12 vectors
+- XSS: 15 payloads (event handlers, polyglot, DOM)
+- SSTI: 10 payloads (Jinja2, Freemarker, Velocity, ERB, Ruby)
+- SSRF: 14 payloads (cloud metadata, localhost variants, /proc files)
+- Deserialization: 5 payloads (Java, PHP, Python pickle)
+- JWT: 5 payloads (alg:none, kid traversal, JWK injection, JKU)
+- Mass Assignment: 5 payloads (is_admin, role, permissions)
+
+Still missing: OAST collaborator for blind SSRF, hidden param discovery, API fuzzing

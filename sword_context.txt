@@ -1,0 +1,94 @@
+=== RAPHAEL 2.0 PROJECT COMPLETE RESEARCH ===
+
+=== FILE: raphael-2.0-blueprint.md ===
+Autonomous AI Security Platform. Built from Raphael 1.0 lessons.
+
+Key architecture:
+- Orchestrator:3100 (FastAPI + MCP Server)
+- FreeLLM API:3001, Groq, NVIDIA, Ollama (Local + Cloud)
+- MCP Hub:3500 (HexStrike-style tool MCP for 150+ tools)
+- CAI Agents:3200 (recon, scan, exploit, defend, forensic, oracle, chat, audit)
+- MHDDoS:3300 (stress-testing)
+- Cloak:3400 (browser automation via Tor)
+- C2 Server:3501 (pupy + Villain)
+- Phishing:3502 (GoPhish + EvilGinx)
+- Recon Pipeline (reconftw → nuclei → whatweb)
+
+The Sword - Offensive Pipeline (worm-judged):
+Phase 0: Recon (reconftw → spiderfoot → crt.sh → Shodan)
+Phase 1: Scanning (nuclei → nmap → whatweb)
+Phase 2: Exploitation (sqlmap → autossrf → Nettacker + PayloadsAllTheThings)
+Phase 3: Post-Exploitation (pupy → evil-winrm → NetExec → Ladon)
+Phase 4: Exfiltration (smtp-tunnel → BounceBack)
+Phase 5: Phishing (GoPhish → EvilGinx → SET)
+
+Performance optimizations: Per-model timeout configs, token budgets, connection pooling, adaptive temperature, result caching, stop sequences, provider chain optimization (300s → 45s)
+
+Anonymous OpSec Layer v2.0: Zero Trust/Zero Persistence/Zero Trace.
+Multi-hop: Target ← SSH Tunnel (ephemeral VM) ← Cloudflare Worker ← Tor ← Orchestrator
+Kill switches: Dead Man (10s heartbeat), Circuit Break (3 failures), Remote Kill (mTLS), Physical Kill (magic packet), Scope Violation
+Forensics denial: Encrypted logs with ephemeral keys, memory-only state, no disk writes, ±5min timestamp randomization, 512B±256B payload padding, 100-500ms jitter, per-target Tor circuits, container --rm
+
+=== FILE: raphael1-orchestrator-app.py ===
+FastAPI app with modes: single, ensemble, pipeline, debate, community, rsi, sword_review, anon_rsi
+Calls models via modes package, uses FreeLLM API Groq, NVIDIA, Ollama
+Voice: Groq Whisper for transcription, gTTS for speech
+CAI agents: recon, scan, exploit, defend, forensic, oracle, chat (8 agents)
+Security agents proxied to CAI service:3200
+MHDDoS stress testing proxied to :3300
+Cloak browser automation proxied to :3400
+Tor rotation via control port
+DB: SQLite with Fernet encryption
+
+=== FILE: raphael1-providers.py ===
+Aliases: wormgpt→WORMGPT-12, wormgpt12→WORMGPT-12, wormgpt13→WORMGPT-13
+Providers: ollama_local, nvidia, ollama_cloud×3, groq, freellmapi
+Local models: WORMGPT-12, WORMGPT-13 (via Ollama)
+NVIDIA: nemotron, qwen3-next
+Groq: qwen3.6, qwen3-32b, llama-3.3-70b, llama-3.1-8b
+Fallback chains with retry + backoff + circuit breaker
+
+=== FILE: raphael1-router.py ===
+Ollama URL: http://host.docker.internal:11434
+FreeLLMAPI URL: http://freellmapi:3001/v1
+Direct call wrapper with model resolution
+
+=== FILE: phase0-live-recon-results.txt ===
+Target: osmania.ac.in
+Subdomains: www, nertu (external), ums (on-prem IIS), mail (Google)
+Found: SQLi targets on /res07/, SOAP endpoint /LoginSer.asmx, Tomcat 9.0.106
+Tor connectivity works but target blocks Tor exit IPs
+
+=== WORMGPT-12 JUDGMENT ===
+HexStrike:19 | pupy:18 | reconftw:19 | PayloadsAllTheThings:17 | Redcloud:16 | h1-brain:12 | GoPhish:17 | nmap:18 | Nettacker:16
+
+=== WORMGPT-13 JUDGMENT ===
+L+A scoring:
+AI AGENTS: HexStrike 10+10 | C2: pupy 9+9 | RECON: reconftw 9+10 | EXPLOIT: Nuclei 10+10 | TUNNEL: Redcloud 8+9 | MCP: h1-brain 7+8 | CRED: GoPhish 9+9 | NETWORK: nmap 9+8 | WEB: Nuclei 10+10
+
+=== RESEARCH-ALL-TOOLS ===
+AI AGENTS: HexStrike(9964⭐MCP-150+tools), Decepticon(4513⭐), Pentest-Swarm-AI(1967⭐), CyberStrike(721⭐7300+skills), PentestAgent(2684⭐), yakit(7396⭐)
+C2: pupy(8985⭐), phpsploit(2480⭐), Villain(4401⭐), evil-winrm(5403⭐), NetExec(5637⭐), shad0w(2175⭐), PoshC2(2112⭐), Ladon(5299⭐)
+RECON: reconftw(7731⭐), spiderfoot, karma_v2(998⭐), WhatWeb(6677⭐), mosint(5402⭐), secator(1297⭐)
+EXPLOIT: PayloadsAllTheThings(78702⭐), Nettacker(5265⭐), afrog(4316⭐), Nuclei, sqlmap, autossrf(364⭐)
+TUNNEL: smtp-tunnel(1588⭐), x-ui-pro(1278⭐), BounceBack(1089⭐), Redcloud(1278⭐), overlord(634⭐)
+MCP: h1-brain(313⭐), BurpMCP(50⭐), mcpstrike(9⭐), cybersec-mcp(18⭐580+tools), raven-nest-mcp(1⭐22+tools)
+CRED: DefaultCreds(6626⭐), hashcat, john, SET, GoPhish, EvilGinx
+NETWORK: Freeway, MHDDoS, nmap
+SOCIAL: SET, GoPhish, EvilGinx
+
+=== OPSEC LAYER (wormgpt13 judged 10/10) ===
+Multi-hop proxy: Tor → Cloudflare Worker → SSH Tunnel → Target
+Kill switches: Dead Man(10s), Circuit Break, Remote Kill(mTLS), Physical Kill(magic packet), Scope Violation
+Cleanup: reverse order teardown, RAMFS shred, container --rm, key rotation
+Forensics: padded payloads(512B±256B), timestamp jitter(±5min), connection jitter(100-500ms), per-target Tor circuits, no persistent shell/temp files
+
+=== OPTIMIZATIONS (wormgpt13 judged 9/10) ===
+Per-model timeouts, token budgets, connection pooling, adaptive temperature, result caching, parallel model calls, RSI summarization, stop sequences, provider health checks, streaming
+Provider chain optimized from 300s to 45s max
+
+=== RSI MODE ===
+Recursive Self-Improvement loop: generator→judge cycle
+Default: wormgpt12 generator, wormgpt12 judge
+Configurable: max_iterations(5), threshold(8/10), criteria
+Score extraction via regex <<<score>>>, JSON, or "score: X/10" patterns

@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir fastapi uvicorn httpx pywinrm paramiko neo4j
+
+COPY main.py .
+
+RUN groupadd -r appuser -g 1000 && \
+    useradd -r -g appuser -u 1000 -s /sbin/nologin -d /nonexistent appuser
+
+USER 1000:1000
+
+EXPOSE 3501
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3501"]

@@ -1,0 +1,131 @@
+{
+  "version": "1.0",
+  "categories": {
+    "cloud": [
+      {
+        "name": "prowler",
+        "description": "Cloud security assessment using Prowler. Audits AWS/Azure/GCP configurations against CIS benchmarks.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "trivy",
+        "description": "Container and filesystem vulnerability scanner using Trivy.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "forensics": [
+      {
+        "name": "exiftool",
+        "description": "Extract metadata from files using ExifTool.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "volatility",
+        "description": "Memory forensics using Volatility 3. Analyze memory dumps for processes, network connections, and artifacts.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "exploit": [
+      {
+        "name": "metasploit",
+        "description": "Metasploit RPC integration. Execute exploits, generate payloads, and manage sessions via MSFRPC.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "searchsploit",
+        "description": "Search Exploit-DB for exploits matching a given term or CVE.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "c2": [
+      {
+        "name": "evil-winrm",
+        "description": "Evil-WinRM for Windows remote command execution via WinRM.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "pupy",
+        "description": "Pupy C2 deployment and management. Generate and deploy cross-platform implants for post-exploitation.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "phishing": [
+      {
+        "name": "gophish",
+        "description": "GoPhish phishing campaign management. Create and manage phishing campaigns via the GoPhish API.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "web": [
+      {
+        "name": "gobuster",
+        "description": "Directory/file enumeration using gobuster. Brute-forces directories and files on web servers.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "nuclei",
+        "description": "Vulnerability scanner using nuclei templates. Scans targets with 4000+ vulnerability templates.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "sqlmap",
+        "description": "SQL injection detection and exploitation using sqlmap. Automates detection and exploitation of SQLi flaws.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "recon": [
+      {
+        "name": "nmap",
+        "description": "Port scan a target using nmap. Discovers open ports, running services, and OS detection.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "subfinder",
+        "description": "Passive subdomain enumeration using subfinder. Discovers subdomains from public sources.",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ]
+  }
+}

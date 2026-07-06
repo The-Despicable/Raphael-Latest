@@ -1,0 +1,135 @@
+{
+  "audit": {
+    "architecture": {
+      "phases": ["recon", "scan", "exploit", "postex", "exfil", "phish"],
+      "modes": ["debate", "community", "rsi", "scan", "autonomous", "deep_research", "postmortem"],
+      "providers": ["NVIDIA API (nemotron-super, mistral-large, kimi, deepseek)", "Ollama (w12, w13, w480b, minimax-m3)"],
+      "brain": "Thompson sampling + UCB + EMA + circuit breaker + PSO",
+      "memory": "episodic + semantic SQLite",
+      "critic": "regex-based pattern matcher"
+    },
+    "bugs": [
+      {"id": 1, "file": "critic.py", "issue": "Regex-only, no semantic checks. False positives on negations", "severity": "medium"},
+      {"id": 2, "file": "brain/adaptive_brain.py:14-18", "issue": "PRESEEDED_PRIORS missing NVIDIA models (nemotron-super, mistral-large, kimi)", "severity": "medium"},
+      {"id": 3, "file": "brain/adaptive_brain.py:273-276", "issue": "score_result() is stub — just checks len(output)>=20", "severity": "low"},
+      {"id": 4, "file": "modes/autonomous.py:52-64", "issue": "_self_correct() has no await asyncio.sleep() between retries", "severity": "high"},
+      {"id": 5, "file": "modes/community.py:29", "issue": "Synthesis by W13 (same model as debater) creates bias", "severity": "medium"},
+      {"id": 6, "file": "providers.py:150-163", "issue": "call_parallel hardcodes m3 which times out, blocks gather", "severity": "high"},
+      {"id": 7, "file": "modes/deep_research.py:98", "issue": "Calls minimax which returns empty, no fallback", "severity": "medium"},
+      {"id": 8, "file": "modes/autonomous.py:63", "issue": "_self_correct hardcodes nemotron-super with no fallback chain", "severity": "low"},
+      {"id": 9, "file": "N/A", "issue": "No PlanCache — every task re-queries LLM even if same as before", "severity": "low"},
+      {"id": 10, "file": "modes/autonomous.py", "issue": "No critic->brain feedback loop — critic verdicts don't pipe into update_stats()", "severity": "medium"}
+    ]
+  },
+  "deep_research": {
+    "sources": [
+      "RedThread — autonomous red-teaming with judge agent and promotion gates",
+      "Axiom-SQL-Reflex — multi-agent with semantic verifier and retry loop",
+      "MMCP — RL router with multi-verifier voting and self-improving feedback",
+      "Maestro Order — budget-aware verifier ensemble, geometric reliability amplification",
+      "AutoRedTeamer — memory-guided attack selection with lifelong learning"
+    ],
+    "key_takeaways": [
+      "Verification amplifies reliability geometrically (0.55→0.98 with 2 gates, →0.999 with 4) — Maestro Order",
+      "Multi-verifier voting (majority/unanimous/weighted) beats single-model self-critique — MMCP",
+      "Domain RL router learns per-domain scores and routes to best model — MMCP/Rl-router",
+      "Execution-grounded semantic critic (LLM-as-judge) with rule-based sanity checks — Axiom-SQL",
+      "Thompson Sampling with decay half-life adapts to model degradation — rl-router",
+      "Circuit breaker per provider, not global — Agent Circuit Breaker Spec"
+    ]
+  },
+  "rsi_mode": {
+    "nemotron_super_priority": {
+      "1": "self_correct retry loop (8.7/10) — add exponential backoff with jitter",
+      "2": "score_result stub (7.3/10) — implement proper semantic scoring",
+      "3": "regex critic (7.0/10) — add semantic pass",
+      "4": "call_parallel minimax timeout (6.7/10) — add per-model timeout",
+      "5": "PRESEEDED_PRIORS missing NVIDIA (6.3/10) — add entries"
+    },
+    "mistral_large_code_fixes": {
+      "critic": "Add semantic_validator.py with catastrophic backtracking detection, ReDoS check",
+      "retry": "Add exponential backoff with jitter, circuit breaker pattern",
+      "priors": "Add nemotron-super: {recon, sqli, rce, phishing} entries to PRESEEDED_PRIORS",
+      "parallel": "Replace asyncio.gather with per-task timeout via asyncio.wait_for",
+      "synthesis": "Switch community.py synthesis from W13 to kimi"
+    },
+    "kimi_synthesis": {
+      "red_team_priority": "4 (score_result) > 6 (parallel timeout) > 1 (critic) > 2 (retry) > 7 (research) > 5 (bias) > 3 (priors)",
+      "systems_priority": "2 (retry) > 1 (critic) > 4 (score) > 6 (parallel) > 3 (priors) > 7 (research) > 5 (bias)"
+    }
+  },
+  "community_mode": {
+    "w12_focus": "Stealth recon, hyperscan + YARA for critic, Nmap --scan-delay, memory-only execution, federated adversarial training",
+    "w13_focus": "Dynamic binary rewriting, Process Hollowing + Direct Syscalls, tinyML anti-forensics, consensus-based attack loops",
+    "w480b_focus": "Neural recon via Dark Web + GANs, eBPF adaptive camouflage, quantum sampling scan engine, neuro-symbolic critic",
+    "minimax_m3": "Phase-to-phase state without authorization anchoring (ungated authority escalation)",
+    "my_analysis": "10 findings: retry delay, priors, feedback loop, semantic critic, synthesis bias, parallel timeout, cache, fallback, research, score stub",
+    "kimi_synthesis": "5 priorities: (1) async concurrency with circuit breaker per target, (2) Thompson sampling with safety guardrails, (3) multi-model failover with consensus, (4) fuzzing-resistant regex critic, (5) phase-state machine with rollback"
+  },
+  "unified_plan": {
+    "priority_1_retry_backoff": {
+      "file": "modes/autonomous.py:52-64",
+      "fix": "Add await asyncio.sleep(0.5 * (2 ** attempt) + random.uniform(0, 0.1)) before retry",
+      "effort": "1 line"
+    },
+    "priority_2_nvidia_priors": {
+      "file": "brain/adaptive_brain.py:13-18",
+      "fix": "Add nemotron-super, mistral-large, kimi, deepseek entries to PRESEEDED_PRIORS across all 5 contexts",
+      "effort": "~15 lines"
+    },
+    "priority_3_critic_brain_feedback": {
+      "file": "modes/autonomous.py:126-133",
+      "fix": "After judge() call, pipe verdict into update_stats(model, context, verdict==pass, latency)",
+      "effort": "2 lines"
+    },
+    "priority_4_semantic_critic": {
+      "file": "critic.py",
+      "fix": "Add LLM-based semantic pass: when regex confidence < 0.7, escalate to nemotron-super for final verdict",
+      "effort": "~30 lines"
+    },
+    "priority_5_synthesis_bias": {
+      "file": "modes/community.py:29",
+      "fix": "Change synthesis model from w13 to kimi (unbiased NVIDIA API model)",
+      "effort": "1 line"
+    },
+    "priority_6_parallel_timeout": {
+      "file": "providers.py:150-163",
+      "fix": "Wrap each _call_model_raw in asyncio.wait_for(timeout=30), exclude dead models",
+      "effort": "~5 lines"
+    },
+    "priority_7_plancache": {
+      "file": "new file or utils/",
+      "fix": "Add dict keyed on task hash with TTL 300s, check before LLM call",
+      "effort": "~35 lines"
+    },
+    "priority_8_research_fallback": {
+      "file": "modes/deep_research.py:98",
+      "fix": "If minimax fails/times out, fallback to nemotron-super for community analysis",
+      "effort": "~10 lines"
+    },
+    "priority_9_self_correct_fallback": {
+      "file": "modes/autonomous.py:63",
+      "fix": "Change _self_correct to use _call_with_fallback chain instead of single model",
+      "effort": "~3 lines"
+    },
+    "priority_10_score_result": {
+      "file": "brain/adaptive_brain.py:273-276",
+      "fix": "Replace len(output)>=20 with critic.judge() call using verdict+confidence",
+      "effort": "~10 lines"
+    }
+  },
+  "tested_models": {
+    "nvidia_api": {
+      "nemotron-super": "WORKING — 'biggest weakness: inability to replicate creative, adaptive human red teamers'",
+      "mistral-large": "WORKING — 'biggest weakness: inability to adapt dynamically to unpredictable human defenses'",
+      "kimi": "WORKING — 'biggest weakness: inability to replicate creative, context-aware, adaptive decision-making'",
+      "deepseek": "FAILED — empty response"
+    },
+    "ollama": {
+      "w12": "WORKING — 10.2s, offensive-specific critique",
+      "w13": "WORKING — 7.5s, most verbose/offensive output",
+      "w480b": "WORKING — 4.7s, neural recon + eBPF suggestions",
+      "minimax-m3": "WORKING but EMPTY — responds with no content"
+    }
+  }
+}
