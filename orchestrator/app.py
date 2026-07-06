@@ -35,8 +35,8 @@ async def run():
         print("  rsi:             python app.py rsi \"<research task>\" — W12+W13 advise, you execute")
         print("  postmortem:      python app.py postmortem \"<task>\" [--output <log>] — critic + RCA + corrected plan")
         print("  scan:            python app.py scan <target> [--ports N-M] [--nuclei-severity <sev>] [--no-proxy]")
-        print("  autonomous:      python app.py autonomous <target> [--phases p1,p2,...] [--rounds N] [--no-anonymity] [--use-pso]")
-        print("  engage:          python app.py engage <target> [--phases p1,p2,...] [--no-anonymity]  (Brain→Sword unification)")
+        print("  autonomous:      python app.py autonomous <target> [--phases p1,p2,...] [--rounds N] [--use-pso]")
+        print("  engage:          python app.py engage <target> [--phases p1,p2,...]  (Brain→Sword unification)")
         print("  exploit:         python app.py exploit <target> [--url <url>] [--sql-level 3] [--sql-risk 2]")
         print("  postex:          python app.py postex <target_ip> [--domain <domain>] [--username <user>] [--password <pass>] [--network <cidr>]")
         print("  exfil:           python app.py exfil \"<data>\" --method dns|smtp|http|redirector|infra|all [--dns-domain <d>] [--smtp-server <s>] [--http-endpoint <u>] [--recipient <r>] [--forward <host:port>] [--sandbox]")
@@ -129,22 +129,18 @@ async def run():
             print("Error: target required for engage mode")
             sys.exit(1)
         phases = None
-        no_anonymity = False
         i = 1
         while i < len(args):
             a = args[i]
             if a == "--phases" and i + 1 < len(args):
                 phases = [p.strip() for p in args[i + 1].split(",")]
                 i += 1
-            elif a == "--no-anonymity":
-                no_anonymity = True
-                _warn_no_proxy()
             i += 1
         from brain.autonomous import run_autonomous_engagement
         result = await run_autonomous_engagement(
             target, phases or ["recon", "scan", "exploit", "postex"],
             api_key=os.getenv("API_KEY", ""),
-            enforce_anonymity=not no_anonymity,
+            enforce_anonymity=True,
         )
     elif mode == "postex":
         target = args[0] if args else None
@@ -401,7 +397,6 @@ async def run():
             sys.exit(1)
         phases = None
         rounds = 1
-        no_anonymity = False
         use_pso = False
         i = 1
         while i < len(args):
@@ -412,14 +407,10 @@ async def run():
             elif a == "--rounds" and i + 1 < len(args):
                 rounds = int(args[i + 1])
                 i += 1
-            elif a == "--no-anonymity":
-                no_anonymity = True
-                _warn_no_proxy()
             elif a == "--use-pso":
                 use_pso = True
             i += 1
-        result = await autonomous.handle(target, phases=phases, rounds=rounds,
-                                         no_anonymity=no_anonymity, use_pso=use_pso)
+        result = await autonomous.handle(target, phases=phases, rounds=rounds, use_pso=use_pso)
     else:
         result = await handler(question)
 

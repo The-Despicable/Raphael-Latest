@@ -22,6 +22,8 @@ services:
     volumes:
       - ./orchestrator:/raphael/orchestrator
       - /usr/bin/nmap:/usr/bin/nmap:ro
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
       - tor-proxy
     networks:
@@ -44,6 +46,8 @@ services:
     cap_add:
       - NET_RAW
       - NET_ADMIN
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
       - tor-proxy
     networks:
@@ -65,6 +69,8 @@ services:
       - TOR_CONTROL=tor-proxy:9051
     cap_add:
       - NET_ADMIN
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
       - tor-proxy
     networks:
@@ -83,8 +89,14 @@ services:
     environment:
       - SERVICE_NAME=c2-server
       - RAPHAEL_PATH=/raphael
+      - SLIVER_OPERATOR_CONFIG=/sliver-config/operator.cfg
     volumes:
       - ./orchestrator:/raphael/orchestrator
+      - sliver-config:/sliver-config:ro
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+    depends_on:
+      - sliver-server
     networks:
       - raphael-net
     logging: *default-logging
@@ -103,6 +115,8 @@ services:
       - RAPHAEL_PATH=/raphael
     volumes:
       - ./orchestrator:/raphael/orchestrator
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     networks:
       - raphael-net
     logging: *default-logging
@@ -124,6 +138,8 @@ services:
       - case-data:/data
     cap_add:
       - NET_RAW
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
       - tor-proxy
     networks:
@@ -147,6 +163,8 @@ services:
     cap_add:
       - NET_RAW
       - NET_ADMIN
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
       - cai-service
       - mhddos-service
@@ -174,12 +192,15 @@ services:
       - BRAIN_DB=/data/brain.db
       - TOR_SOCKS=tor-proxy:9050
       - TOR_CONTROL=tor-proxy:9051
+      - SLIVER_OPERATOR_CONFIG=/sliver-config/operator.cfg
     volumes:
       - brain-data:/data
+      - sliver-config:/sliver-config:ro
     cap_add:
       - NET_ADMIN
     depends_on:
       - tor-proxy
+      - sliver-server
     networks:
       - raphael-net
     logging: *default-logging
@@ -196,6 +217,25 @@ services:
       raphael-net:
         aliases:
           - tor-proxy
+    logging: *default-logging
+    restart: unless-stopped
+
+  sliver-server:
+    build:
+      context: ./sliver
+      dockerfile: Dockerfile
+    ports:
+      - "31337:31337"
+      - "31334:31334"
+    volumes:
+      - sliver-config:/config
+      - sliver-data:/data
+    environment:
+      - SLIVER_LISEN_PORT=31337
+    networks:
+      raphael-net:
+        aliases:
+          - sliver-server
     logging: *default-logging
     restart: unless-stopped
 
@@ -247,3 +287,5 @@ volumes:
   brain-data:
   case-data:
   neo4j-data:
+  sliver-config:
+  sliver-data:

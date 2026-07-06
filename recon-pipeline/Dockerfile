@@ -13,6 +13,12 @@ RUN curl -Lo /usr/local/bin/nuclei \
     https://github.com/projectdiscovery/nuclei/releases/latest/download/nuclei_linux_amd64 \
     && chmod +x /usr/local/bin/nuclei
 
+RUN apt-get install -y --no-install-recommends whatweb && rm -rf /var/lib/apt/lists/*
+
+RUN curl -Lo /usr/local/bin/hashcat \
+    https://github.com/hashcat/hashcat/releases/latest/download/hashcat-linux-x64 \
+    && chmod +x /usr/local/bin/hashcat 2>/dev/null; true
+
 WORKDIR /app
 
 COPY requirements.txt .

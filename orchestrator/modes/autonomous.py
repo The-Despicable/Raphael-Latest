@@ -234,7 +234,7 @@ Fix the specific issue. Only generate exploits for endpoints listed above. Outpu
 
 
 async def handle(target: str, phases: list = None, rounds: int = 1,
-                 no_anonymity: bool = False, use_pso: bool = False,
+                 use_pso: bool = False,
                  max_tokens: int = 4096, temperature: float = 0.85) -> dict:
     if phases is None:
         phases = PHASES
@@ -242,9 +242,9 @@ async def handle(target: str, phases: list = None, rounds: int = 1,
     results = {"target": target, "phases": {}, "analytics": {}, "anonymity": {},
                "profile": {}, "critic_log": [], "timestamp": time.time()}
 
-    guard = AnonymityGuard(strategy="tor" if not no_anonymity else "auto", rotation_interval=300)
+    guard = AnonymityGuard(strategy="tor", rotation_interval=300)
     try:
-        anon_status = guard.enforce(allow_skip=no_anonymity, target=target)
+        anon_status = guard.enforce(target=target)
         results["anonymity"] = anon_status
     except RuntimeError as e:
         results["anonymity"] = {"error": str(e), "tor_active": False}

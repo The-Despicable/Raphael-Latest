@@ -513,6 +513,70 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         pp(result, title="PayloadsDB")
         return ""
 
+    if cmd == "dashboard":
+        await _show_dashboard(state)
+        return ""
+
+    if cmd == "engage":
+        if not args:
+            console.print("[yellow]Usage: /engage <target> [--phases p1,p2,...][/]")
+            return ""
+        target = args[0]
+        phases = None
+        for i, a in enumerate(args[1:], 1):
+            if a == "--phases" and i + 1 < len(args):
+                phases = [p.strip() for p in args[i + 1].split(",")]
+        result = await _start_engage(target, phases)
+        pp(result, title=f"Engagement: {target}")
+        return ""
+
+    if cmd == "findings":
+        target = args[0] if args else None
+        if not target:
+            console.print("[yellow]Usage: /findings <target>[/]")
+            return ""
+        result = await _get_findings(target)
+        table = Table(title=f"Findings: {target}", box=box.ROUNDED)
+        table.add_column("Phase", style="cyan")
+        table.add_column("Type", style="yellow")
+        table.add_column("Severity", style="red")
+        table.add_column("Description", style="white")
+        table.add_column("Target", style="green")
+        for f in result.get("findings", []):
+            table.add_row(f.get("phase", ""), f.get("type", ""),
+                          f.get("severity", ""), f.get("description", "")[:60],
+                          f.get("target", ""))
+        console.print(table)
+        return ""
+
+    if cmd == "topology":
+        target = args[0] if args else None
+        if not target:
+            console.print("[yellow]Usage: /topology <target>[/]")
+            return ""
+        result = await _get_findings(target)
+        console.print(_render_topology(result.get("findings", []), target))
+        return ""
+
+    if cmd == "session":
+        if not args:
+            sessions = await _list_sessions()
+            table = Table(title="Sessions", box=box.ROUNDED)
+            table.add_column("ID", style="cyan")
+            table.add_column("Target", style="white")
+            table.add_column("Phase", style="yellow")
+            table.add_column("Updated", style="green")
+            for s in sessions:
+                table.add_row(s.get("session_id", ""), s.get("target", ""),
+                              s.get("current_phase", ""),
+                              str(s.get("updated_at", "")))
+            console.print(table)
+            return ""
+        sid = args[0]
+        result = await _resume_session(sid)
+        pp(result, title=f"Session: {sid}")
+        return ""
+
     if cmd == "status":
         table = Table(title="Raphael 2.0 Status", box=box.ROUNDED)
         table.add_column("Key", style="cyan")
@@ -679,6 +743,143 @@ async def _run_strix(target: str) -> str:
         return "[red]Strix timed out (300s limit)[/]"
     except Exception as e:
         return f"[red]Strix error: {e}[/]"
+
+
+async def _show_dashboard(state: dict):
+    api = os.getenv("BRAIN_API", "http://localhost:3700")
+    import httpx
+
+    async def _fetch():
+        try:
+            async with httpx.AsyncClient(timeout=5) as cl:
+                r = await cl.get(f"{api}/v1/cli/status")
+                return r.json()
+        except Exception:
+            return {"engagements": [], "agents": [], "models_tracked": 0, "chain_steps": 0}
+
+    data = await _fetch()
+
+    layout = Layout()
+    layout.split_column(
+        Layout(name="header", size=3),
+        Layout(name="body"),
+        Layout(name="footer", size=3),
+    )
+    layout["body"].split_row(
+        Layout(name="engagements"),
+        Layout(name="agents"),
+    )
+
+    def render_engagements(data: dict) -> Table:
+        table = Table(title="Active Engagements", box=box.ROUNDED)
+        table.add_column("ID", style="cyan")
+        table.add_column("Target", style="white")
+        table.add_column("Phase", style="yellow")
+        for eng in data.get("engagements", []):
+            table.add_row(eng.get("session_id", "?")[:8],
+                          eng.get("target", "?"),
+                          eng.get("current_phase", "?"))
+        return table
+
+    def render_agents(data: dict) -> Table:
+        table = Table(title="C2 Agents", box=box.ROUNDED)
+        table.add_column("ID", style="cyan")
+        table.add_column("Host", style="white")
+        table.add_column("OS", style="yellow")
+        table.add_column("Status", style="green")
+        for a in data.get("agents", []):
+            table.add_row(a.get("id", "?")[:8], a.get("hostname", "?"),
+                          a.get("os", "?"), a.get("status", "?"))
+        return table
+
+    header_panel = Panel(f"[bold cyan]Raphael 2.0 — Dashboard[/]\n"
+                         f"Models: {data.get('models_tracked', 0)}  "
+                         f"Chain steps: {data.get('chain_steps', 0)}  "
+                         f"Engagements: {len(data.get('engagements', []))}  "
+                         f"Agents: {len(data.get('agents', []))}")
+
+    footer_panel = Panel("[dim]Press Ctrl+C to exit dashboard[/]")
+
+    console.clear()
+    try:
+        with Live(layout, refresh_per_second=1, screen=True) as live:
+            while True:
+                data = await _fetch()
+                layout["header"].update(header_panel)
+                layout["engagements"].update(render_engagements(data))
+                layout["agents"].update(render_agents(data))
+                layout["footer"].update(footer_panel)
+                await asyncio.sleep(2)
+    except KeyboardInterrupt:
+        pass
+
+    console.print("[dim]Dashboard closed[/]")
+
+
+async def _start_engage(target: str, phases: list[str] = None) -> dict:
+    api = os.getenv("BRAIN_API", "http://localhost:3700")
+    import httpx
+    payload = {"target": target}
+    if phases:
+        payload["phases"] = phases
+    try:
+        async with httpx.AsyncClient(timeout=600) as cl:
+            r = await cl.post(f"{api}/v1/engage/start", json=payload)
+            return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _get_findings(target: str) -> dict:
+    api = os.getenv("BRAIN_API", "http://localhost:3700")
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10) as cl:
+            r = await cl.get(f"{api}/v1/brain/memory", params={"target": target, "limit": 100})
+            return r.json()
+    except Exception:
+        return {"findings": []}
+
+
+def _render_topology(findings: list[dict], target: str) -> str:
+    lines = []
+    lines.append(f"┌─ {target}")
+    ports = {str(f.get("port", "?")): f for f in findings if f.get("port")}
+    vulns = [f for f in findings if f.get("severity") in ("critical", "high")]
+    for port, f in ports.items():
+        sev = f.get("severity", "info")
+        flag = {"critical": "🔴", "high": "🟡", "medium": "🟠", "low": "🔵"}.get(sev, "⚪")
+        svc = f.get("service", "") or f.get("protocol", "")
+        lines.append(f"│  {flag} Port {port}  {svc}")
+    for v in vulns[:5]:
+        sev = {"critical": "🔴", "high": "🟡", "medium": "🟠", "low": "🔵"}.get(v.get("severity", ""), "⚪")
+        desc = v.get("description", v.get("type", ""))[:60]
+        lines.append(f"│    {sev} {desc}")
+    lines.append("└─")
+    return "\n".join(lines)
+
+
+async def _list_sessions() -> list[dict]:
+    api = os.getenv("BRAIN_API", "http://localhost:3700")
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=5) as cl:
+            r = await cl.get(f"{api}/v1/cli/status")
+            data = r.json()
+            return data.get("engagements", [])
+    except Exception:
+        return []
+
+
+async def _resume_session(session_id: str) -> dict:
+    api = os.getenv("BRAIN_API", "http://localhost:3700")
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10) as cl:
+            r = await cl.get(f"{api}/v1/session/{session_id}")
+            return r.json()
+    except Exception as e:
+        return {"error": str(e)}
 
 
 async def main():

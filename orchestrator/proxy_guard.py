@@ -199,8 +199,9 @@ class ProxyGuard:
         response = session.get("https://target.com")
     """
 
-    def __init__(self, no_anonymity: bool = False, target: str = ""):
-        self._no_anonymity = no_anonymity
+    def __init__(self, target: str = ""):
+        dev_mode = os.getenv("RAPHAEL_DEV_MODE", "").lower() in ("1", "true", "yes")
+        self._dev_mode = dev_mode
         self._target = target
         self._exit_ip = None
         self._real_ip = None
@@ -217,11 +218,12 @@ class ProxyGuard:
         self._state_history: list[ProxyState] = []
         self._opsec_skill_result = None
 
-        # Auto-detect localhost — no proxy needed for local targets
-        if not no_anonymity and target:
-            if _is_localhost_target(target):
-                self._no_anonymity = True
-                logger.info(f"  Auto-detected localhost target '{target}' — no proxy enforcement")
+        if dev_mode:
+            logger.critical("=" * 60)
+            logger.critical("RAPHAEL_DEV_MODE=1 — PROXY ENFORCEMENT IS DISABLED")
+            logger.critical("All traffic will be DIRECT. Do NOT use this against real targets.")
+            logger.critical("Set RAPHAEL_DEV_MODE=0 or unset for production mode.")
+            logger.critical("=" * 60)
 
         # Use certifi's CA bundle for TLS verification
         import certifi
@@ -239,7 +241,7 @@ class ProxyGuard:
 
     def _detect_proxy_strategy(self) -> str:
         """Auto-detect the best proxy strategy based on what's available and the target."""
-        if self._no_anonymity:
+        if self._dev_mode:
             return "direct"
 
         # 1) ProtonVPN — preferred when available (fast, reliable, no Tor bootstrap)
@@ -303,13 +305,13 @@ class ProxyGuard:
         """
         Full pre-flight check. Raises ProxyError if anything is wrong.
         Must pass before any target contact.
-        Skips all checks when no_anonymity=True (localhost/dev mode).
+        Set RAPHAEL_DEV_MODE=1 env var to bypass for localhost testing.
         """
-        if self._no_anonymity:
-            logger.info("=== PROXY GUARD — BYPASSED (no_anonymity mode) ===")
-            logger.info(f"  Target: {self._target or '(not set)'}")
-            logger.info("  All proxy/anonymity checks skipped — direct connection allowed")
-            logger.info("=== BYPASS LOGGED ===\n")
+        if self._dev_mode:
+            logger.critical("=== PROXY GUARD — BYPASSED (RAPHAEL_DEV_MODE) ===")
+            logger.critical(f"  Target: {self._target or '(not set)'}")
+            logger.critical("  All proxy/anonymity checks skipped — direct connection allowed")
+            logger.critical("=== BYPASS LOGGED ===\n")
             return True
 
         logger.info("=== PROXY GUARD PRE-FLIGHT VERIFICATION ===")
@@ -433,7 +435,7 @@ class ProxyGuard:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(3)
             sock.connect(("127.0.0.1", TOR_CONTROL_PORT))
-            password = os.getenv("TOR_CONTROL_PASS", "")
+            password = os.getenv("TOR_CONTROL_PASS", "") or os.getenv("TOR_PASSWORD", "")
             if password:
                 sock.sendall(f'AUTHENTICATE "{password}"\r\n'.encode())
             else:
@@ -750,23 +752,23 @@ class ProxyGuard:
             return False
 
     def _check_dns_leak(self, silent=False) -> bool:
-        """Verify DNS is not leaking — all lookups should be tor-resolved"""
+        """Verify DNS is not leaking — all DNS lookups route through Tor SOCKS5h."""
         try:
-            import dns.resolver
-            resolver = dns.resolver.Resolver()
-            resolver.nameservers = DNS_SERVERS
-            resolver.timeout = 3
-            resolver.lifetime = 5
-            # Do NOT resolve the target domain here — that would create a leak!
-            # Just verify DNS servers are reachable
-            answers = resolver.resolve("google.com", "A")
+            import socks
+            s = socks.socksocket()
+            s.set_proxy(socks.SOCKS5, "127.0.0.1", TOR_PORT, True)
+            s.settimeout(5)
+            s.connect(("check.torproject.org", 80))
+            s.sendall(b"GET / HTTP/1.0\r\nHost: check.torproject.org\r\n\r\n")
+            s.recv(256)
+            s.close()
             if not silent:
-                logger.info(f"  ✓ DNS servers reachable (will route target DNS through proxy)")
+                logger.info(f"  ✓ DNS routes through Tor SOCKS5h (no direct DNS leaks)")
             return True
-        except Exception as e:
+        except Exception:
             if not silent:
-                logger.warning(f"  ⚠ Direct DNS check failed (expected if Tor is handling DNS): {e}")
-            return True  # This can happen if iptables blocks DNS — which is correct behavior
+                logger.warning(f"  ⚠ Cannot confirm Tor DNS routing — check proxy chain")
+            return False
 
     def _check_iptables_kill_switch(self, silent=False) -> bool:
         """Verify iptables OUTPUT policy is DROP (kill-switch active)"""

@@ -211,10 +211,14 @@ async def get_chain(chain_hash: str):
 @app.get("/v1/health")
 async def health():
     state = brain.get_state()
+    from orchestrator.providers import BREAKERS, is_online
+    online = await is_online()
     return {
         "status": "ok",
+        "online": online,
         "models_tracked": len(state.get("models", [])),
         "chain_steps": state.get("total_chain_steps", 0),
+        "circuit_breakers": {name: cb.to_dict() for name, cb in BREAKERS.items()},
     }
 
 
@@ -255,6 +259,24 @@ async def pivot_status():
     from orchestrator.pivot.manager import get_pivot
     p = get_pivot()
     return {"chain_length": p.chain_length, "deepest_proxy": p.deepest_proxy}
+
+@app.get("/v1/cli/status")
+async def cli_status():
+    from orchestrator.brain.session_store import SessionStore
+    from orchestrator.c2.manager import get_c2
+    store = SessionStore()
+    c2 = get_c2()
+    sessions = []
+    engagements = store.list_active()
+    agents = [s.to_dict() for s in c2.active_sessions]
+    state = brain.get_state()
+    return {
+        "engagements": engagements,
+        "agents": agents,
+        "models_tracked": len(state.get("models", [])),
+        "chain_steps": state.get("total_chain_steps", 0),
+        "timestamp": time.time(),
+    }
 
 # Register audit trail routes
 class AuditQueryRequest(BaseModel):

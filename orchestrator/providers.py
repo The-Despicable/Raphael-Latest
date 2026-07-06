@@ -1,9 +1,90 @@
-import httpx, asyncio, json, time, os, hashlib
+import httpx, asyncio, json, time, os, hashlib, logging
 from pathlib import Path
 from dotenv import load_dotenv
 from cachetools import TTLCache
 from orchestrator.utils.retry import retry_with_fallback, RetryExhaustedError
 from orchestrator.utils.undercover import normalize as undercover_normalize
+
+logger = logging.getLogger("providers")
+
+
+class CircuitBreakerOpenError(Exception):
+    pass
+
+
+class CircuitBreaker:
+    def __init__(self, name: str, failure_threshold: int = 3, recovery_timeout: int = 60):
+        self.name = name
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.failures = 0
+        self.last_failure = 0.0
+        self.state = "closed"
+
+    def call(self, fn, *args, **kwargs):
+        if self.state == "open":
+            if time.time() - self.last_failure > self.recovery_timeout:
+                self.state = "half-open"
+            else:
+                raise CircuitBreakerOpenError(f"{self.name} circuit is open")
+
+        try:
+            result = fn(*args, **kwargs)
+            self.failures = 0
+            self.state = "closed"
+            return result
+        except Exception as e:
+            self.failures += 1
+            self.last_failure = time.time()
+            if self.failures >= self.failure_threshold:
+                self.state = "open"
+                logger.warning(f"Circuit breaker {self.name} OPEN after {self.failures} failures")
+            raise
+
+    async def call_async(self, fn, *args, **kwargs):
+        if self.state == "open":
+            if time.time() - self.last_failure > self.recovery_timeout:
+                self.state = "half-open"
+            else:
+                raise CircuitBreakerOpenError(f"{self.name} circuit is open")
+
+        try:
+            result = await fn(*args, **kwargs)
+            self.failures = 0
+            self.state = "closed"
+            return result
+        except Exception as e:
+            self.failures += 1
+            self.last_failure = time.time()
+            if self.failures >= self.failure_threshold:
+                self.state = "open"
+                logger.warning(f"Circuit breaker {self.name} OPEN after {self.failures} failures")
+            raise
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "state": self.state,
+            "failures": self.failures,
+            "last_failure": self.last_failure,
+            "threshold": self.failure_threshold,
+        }
+
+
+BREAKERS = {
+    "nvidia": CircuitBreaker("nvidia", failure_threshold=5, recovery_timeout=120),
+    "ollama": CircuitBreaker("ollama", failure_threshold=3, recovery_timeout=30),
+    "omniroute": CircuitBreaker("omniroute", failure_threshold=2, recovery_timeout=300),
+}
+
+
+async def is_online() -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=3) as cl:
+            await cl.get("https://1.1.1.1")
+        return True
+    except Exception:
+        return False
 
 # Load .env so env vars are available outside Docker too
 _dotenv_path = Path(__file__).resolve().parent.parent / ".env"

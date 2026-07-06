@@ -1,15 +1,17 @@
 import socket, time, os, json
 
 
-def verify_anonymity(allow_skip: bool = False, target: str = "") -> dict:
+def verify_anonymity(target: str = "") -> dict:
     result = {
         "tor_active": False, "proxy_ok": False,
         "identity_fresh": True, "strategy": "unknown",
     }
 
+    dev_mode = os.getenv("RAPHAEL_DEV_MODE", "").lower() in ("1", "true", "yes")
+
     try:
         from orchestrator.proxy_guard import ProxyGuard
-        pg = ProxyGuard(no_anonymity=allow_skip, target=target)
+        pg = ProxyGuard(target=target)
 
         try:
             strategy = pg._detect_proxy_strategy()
@@ -31,23 +33,23 @@ def verify_anonymity(allow_skip: bool = False, target: str = "") -> dict:
     except ImportError:
         result["proxy_guard_available"] = False
     except Exception as e:
-        if allow_skip:
+        if dev_mode:
             result["proxy_error"] = str(e)
             result["proxy_ok"] = False
         else:
-            raise RuntimeError(f"Anonymity check failed: {e}. Use allow_skip=True or --no-anonymity")
+            raise RuntimeError(f"Anonymity check failed: {e}")
 
     return result
 
 
 def rotate_tor_identity() -> bool:
     TOR_CONTROL = os.getenv("TOR_CONTROL", "127.0.0.1:9051")
-    TOR_CONTROL_PASS = os.getenv("TOR_CONTROL_PASS", "")
+    tor_pass = os.getenv("TOR_CONTROL_PASS", "") or os.getenv("TOR_PASSWORD", "")
     ctrl_host, ctrl_port = TOR_CONTROL.split(":") if ":" in TOR_CONTROL else ("127.0.0.1", "9051")
     try:
         s = socket.create_connection((ctrl_host, int(ctrl_port)), timeout=5)
-        if TOR_CONTROL_PASS:
-            s.sendall(f'AUTHENTICATE "{TOR_CONTROL_PASS}"\r\n'.encode())
+        if tor_pass:
+            s.sendall(f'AUTHENTICATE "{tor_pass}"\r\n'.encode())
             resp = s.recv(1024)
             if b"250" not in resp:
                 return False
@@ -81,9 +83,9 @@ class AnonymityGuard:
         self._identity_count = 0
         self._detected_strategy = None
 
-    def enforce(self, allow_skip: bool = False, target: str = "") -> dict:
+    def enforce(self, target: str = "") -> dict:
         from orchestrator.proxy_guard import ProxyGuard
-        pg = ProxyGuard(no_anonymity=allow_skip, target=target)
+        pg = ProxyGuard(target=target)
 
         if self._strategy == "auto":
             try:
@@ -93,7 +95,7 @@ class AnonymityGuard:
         else:
             self._detected_strategy = self._strategy
 
-        status = verify_anonymity(allow_skip=allow_skip, target=target)
+        status = verify_anonymity(target=target)
         self._maybe_rotate()
         return status
 
@@ -106,7 +108,7 @@ class AnonymityGuard:
                 self._last_rotation = time.time()
 
     def get_status(self) -> dict:
-        status = verify_anonymity(allow_skip=True)
+        status = verify_anonymity()
         return {
             "strategy": self._detected_strategy or status.get("strategy", "unknown"),
             "proxy_ok": status.get("proxy_ok", False),

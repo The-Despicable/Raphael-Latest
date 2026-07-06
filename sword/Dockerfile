@@ -16,6 +16,13 @@ RUN curl -Lo /usr/local/bin/whatweb \
     https://github.com/urbanadventurer/WhatWeb/releases/latest/download/whatweb-$(uname -m)-linux \
     && chmod +x /usr/local/bin/whatweb 2>/dev/null; true
 
+RUN git clone --depth 1 https://github.com/sqlmapproject/sqlmap /opt/sqlmap \
+    && ln -s /opt/sqlmap/sqlmap.py /usr/local/bin/sqlmap
+
+RUN curl -Lo /usr/local/bin/hashcat \
+    https://github.com/hashcat/hashcat/releases/latest/download/hashcat-linux-x64 \
+    && chmod +x /usr/local/bin/hashcat 2>/dev/null; true
+
 WORKDIR /app
 
 COPY ./sword/requirements.txt .
