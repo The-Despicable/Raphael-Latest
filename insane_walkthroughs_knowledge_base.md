@@ -582,3 +582,43 @@ Spearphish / Jira 0-day
 **Raphael Gap:** CVE-2024-23897 exploitation not automated. Jenkins Groovy-based RCE not in technique patterns.
 
 ---
+
+### Ubisoft / Rainbow Six Siege — Multi-Group Backend Compromise (Dec 2025)
+
+**Source:** SquidSec analysis, VX-Underground investigation, Breached.Company timeline, Ubisoft official statements.
+
+**What happened:** On Dec 26-27, 2025, at least **five independent groups** simultaneously attacked Ubisoft. Rainbow Six Siege servers were taken offline as attackers gained admin-level control over game backend services.
+
+**The lie that got debunked:** Group 2 initially claimed they used **CVE-2025-14847 ("MongoBleed")** — a critical unauthenticated memory leak in exposed MongoDB instances (87K+ vulnerable servers internet-facing, disclosed Christmas 2025). VX-Underground later confirmed **this was fabricated** — Group 2 lied about the method to cover their real approach.
+
+**The real attack (per VX-Underground + SquidSec):**
+
+| Group | What They Did | How |
+|-------|---------------|-----|
+| **Group 1** | Admin-level access to R6 Siege backend | Exploited a direct game service API endpoint — NOT MongoBleed |
+| **Group 1 actions** | Gave 2 billion credits/player (~$13M value), unlocked all cosmetics (Glacier skins, Alpha Packs), banned/unbanned at will, replaced ban ticker with Shaggy lyrics | API abuse via compromised/insider credentials |
+| **Group 2** | Claimed 900GB source code theft (1990s-present) | **Fabricated MongoBleed story** — real method unknown, likely credential theft |
+| **Group 3+** | Additional claims of access | Alleged insider collusion with bribed outsourced support staff (dating to 2021) |
+| **Group 5** | Exposed the truth | Provided technical breakdown debunking Group 2's lies |
+
+**What was actually stolen:**
+- **Confirmed:** None — Ubisoft stated no player personal data (passwords, payment info) was accessed
+- **Unverified:** Group 2's 900GB source code claim — no proof samples released, multiple sources (Insider Gaming, VX-Underground) say claims were "blown way out of proportion"
+
+**Ubisoft's response (notable for being effective):**
+1. Within ~30 minutes: full server shutdown across PC/PS/Xbox, marketplace taken offline
+2. Full transaction rollback from 11:00 AM UTC Dec 27
+3. Explicitly stated no players would be punished for spending illicit credits
+4. Servers restored by Dec 29 after quality checks
+5. No ransom paid (that they disclosed)
+
+**Key lessons:**
+- **Game backend APIs are high-value targets** — admin-level game service endpoints can be abused for massive virtual economy disruption
+- **Multi-group chaos is a real scenario** — 5 independent groups hit simultaneously, each with different motives (fun, extortion, clout)
+- **Insider/outsourced support risk** — allegations of bribed outsourced support staff with admin panel access dating back years
+- **Post-incident misinformation is rampant** — Group 2's MongoBleed lie was repeated by major outlets before VX-Underground debunked it
+- **Rapid shutdown + rollback is the correct play** — Ubisoft's IR was praised even by critics
+
+**Raphael Gap:** No game backend API abuse capability. No outsourced support staff targeting workflow. This case is more about socio-technical attack vectors (insider collusion, API auth failures) than technical exploitation.
+
+---
