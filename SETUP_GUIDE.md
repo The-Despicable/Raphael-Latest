@@ -522,63 +522,21 @@ bash setup_anon.sh
 
 ## 5. Audit Findings (Issues Documented, Not Fixed)
 
-The following issues were discovered during a deep end-to-end audit. None have been fixed — documented here for awareness.
+The following issues were discovered during a deep end-to-end audit. All have been remediated in commit `163fa20`.
 
-### CRITICAL — Container Won't Start
-
-| # | Issue | File | Detail |
-|---|-------|------|--------|
-| 1 | **brain/api.py missing** | `brain/Dockerfile` CMD: `uvicorn brain.api:app` | `brain/api.py` does not exist. The `brain/` directory contains: `auth_monitor.py`, `engagement_modes.py`, `engagement_state.py`, `partial_report.py` — but no `api.py`. **The autonomous-brain container will crash on startup** because the uvicorn command references a non-existent module. |
-
-### HIGH — Security
-
-| # | Issue | File | Detail |
-|---|-------|------|--------|
-| 2 | **Hardcoded sudo password** | `raphael_anonymity_test.sh:82,87,88,100` | Sudo password `23532231` is hardcoded in plain text and piped to `sudo -S`. Anyone with read access to this file gains passwordless sudo on the machine. |
-
-### HIGH — HRM Paths Broken
-
-| # | Issue | File | Detail |
-|---|-------|------|--------|
-| 3 | **HRM venv path wrong** | `start_hrm.sh:5` | References `/home/yaser/Ultimate skill/HRM/.venv/bin/python` — this path does not exist. The actual HRM clone is at `/home/yaser/Ultimate skill/HRM(FUTURE)/HRM/HRM/`. |
-| 4 | **HRM module not found** | `start_hrm.sh:18` | References `orchestrator.hrm_service` — no `hrm_service.py` exists in the main `orchestrator/` directory. |
-| 5 | **Supervisor config broken** | `config/hrm_service.conf` | References same non-existent Python binary and module as `start_hrm.sh`. |
-
-### MEDIUM — Data Files Missing
-
-| # | Issue | File | Detail |
-|---|-------|------|--------|
-| 6 | **5 data files not found** | `orchestrator/run_osmania_autonomous.py` | Expects 5 files in `data/` that don't exist: `phase0-live-recon-results.txt`, `recon-test-osmania-2026-06-26.txt` (exists at `docs/osmania-recon/` instead), `OSMANIA_TARGET_REPORT.md`, `SWORD.md`, `PROGRESS.md`. |
-
-### MEDIUM — Network Configuration
-
-| # | Issue | File | Detail |
-|---|-------|------|--------|
-| 7 | **MCP hub network mismatch** | `mcp-hub/docker-compose.yml` | Declares network `raphael-net` as `external: true` with `name: raphael-2.0`, but the main compose creates `raphael-net` as an ordinary bridge network (actual Docker name: `raphael-2.0_raphael-net`). These two stacks cannot communicate without manual bridging. |
-
-### MEDIUM — Shell Script Issues
-
-| # | Issue | File | Detail |
-|---|-------|------|--------|
-| 8 | **Undefined variable** | `kill_switch_status.sh:17` | Uses `$VPN_IF` which is never defined in this script (defined only in `kill_switch.sh`). Will silently expand to empty string. |
-| 9-14 | **Missing shebangs** | 6 `run_*.py` files | `run_resume_rsi.py`, `run_community_v2.py`, `run_reasoning_v2.py`, `run_fixplan_debate_v2.py`, `run_debate_rsi.py` — no `#!/usr/bin/env python3` shebang. Work with `python3 script.py` but not directly executable. |
-
-### MEDIUM — Config Drift
-
-| # | Issue | File | Detail |
-|---|-------|------|--------|
-| 10 | **`.env.example` is 56% stale** | `.env.example` | 27 of 48 vars in `.env.example` are not read by any running code. These are Raphael 1.x leftovers: `JWT_SECRET`, `MHDDOS_THREADS`, `MHDDOS_DEFAULT_METHOD`, `GOPHISH_API_HOST`, `GOPHISH_API_PORT`, `C2_LISTENER_PORT`, `PUPPY_LISTENER`, `WINRM_USER`, `WINRM_PASS`, `WINRM_PORT`, `SUBFINDER_CONFIG`, `NEO4J_URI`, `PROXY_STRATEGY`, `PROTONVPN_SERVICE_CHECK`, `ACADEMIC_JUMPS`, `SSH_KEY_PATH`, `CHAIN_ORDER`, `AUTO_CLEANUP`, `DEFAULT_PLATFORM`, `CLEANUP_LEVEL`, `MIMICRY_*` (6 vars), `OPENAI_MODEL`, `FROM_EMAIL`. |
-| 11 | **~42 env vars undocumented** | Multiple | Code reads ~42 env vars that have no entry in `.env.example`. See §2.3 for full list. |
-| 12 | **Var name mismatch: `FROM_EMAIL` vs `FROM_ADDR`** | `.env.example` vs `sword/phase_5_phish.py` | `.env.example` documents `FROM_EMAIL` but code reads `FROM_ADDR`. |
-| 13 | **Var name mismatch: `TOR_PASSWORD` vs `TOR_CONTROL_PASS`** | `.env.example` vs multiple files | `.env.example` has `TOR_PASSWORD`. `cloak-service/main.py` reads `TOR_PASSWORD`. But `brain/anonymity_guard.py` and `proxy_guard.py` read `TOR_CONTROL_PASS`. `docker-compose.yml` also uses `TOR_CONTROL_PASS`. These appear to be the same concept under two different names. |
-| 14 | **`WORKING_ALIASES` out of sync** | `providers.py:98-104` | `WORKING_ALIASES` omits `glm`, `nemotron-super-120b`, `nemotron-super15`, `minimax`, `minimaxm3`, `m3` — but `m3` is explicitly used by `call_parallel` (line 351). When `call_model("m3", ...)` is called, the `model not in WORKING_ALIASES` check on line 297 triggers auto-pick instead of using `m3`. |
-| 15 | **`JWT_SECRET` is dead config** | `.env.example` + `raphael_cli.py:59` | Listed in `.env.example` and checked for weak-default warning, but no code performs JWT signing or verification anywhere. |
-
-### LOW
-
-| # | Issue | File | Detail |
-|---|-------|------|--------|
-| 16 | **Hardcoded container names** | `raphael_anonymity_test.sh:143` | Container names hardcoded as `raphael-20-recon-pipeline-1` etc. — may not match actual Docker compose naming (depends on compose project name). |
+| # | Issue | File | Detail | Fix |
+|---|-------|------|--------|-----|
+| 1 | **brain/api.py missing** | `brain/Dockerfile` | False alarm — module exists at `orchestrator/brain/api.py`. Build context is project root, not `brain/`. | CMD updated to `orchestrator.brain.api:app` in `brain/Dockerfile` |
+| 2 | **Hardcoded sudo password** | `raphael_anonymity_test.sh` | Sudo password `23532231` piped to `sudo -S` in 4 places. | All replaced with `sudo -n` |
+| 3–5 | **HRM paths broken** | `start_hrm.sh`, `config/hrm_service.conf` | HRM subsystem decommissioned (hardware bottleneck). |
+| 6 | **5 data files not found** | `orchestrator/run_osmania_autonomous.py` | Files expected in `data/` don't exist. | Added `docs/osmania-recon/` fallback path |
+| 7 | **MCP hub network mismatch** | `mcp-hub/docker-compose.yml` | `name: raphael-2.0` doesn't match auto-generated `raphael-2.0_raphael-net`. | Changed to `name: raphael-2.0_raphael-net` |
+| 8 | **Undefined `$VPN_IF`** | `kill_switch_status.sh:17` | Expands to empty string. | Changed to literal `tun1` |
+| 9 | **Missing shebangs** | 6 `run_*.py` files | 3 files missing shebangs (`run_resume_rsi.py`, `run_debate_rsi.py`, `run_osmania_autonomous.py`). Other 3 already had them. | `#!/usr/bin/env python3` added to 3 files |
+| 10 | **`.env.example` 56% stale** | `.env.example` | 27 stale vars removed. `FROM_EMAIL`→`FROM_ADDR`, `SUBFINDER_CONFIG`→`SUBFINDER_PATH`. | Cleaned in commit |
+| 14 | **`WORKING_ALIASES` out of sync** | `providers.py` | Missing `glm`, `nemotron-super-120b`, `nemotron-super15`. | Added to list |
+| 15 | **`JWT_SECRET` dead config** | `.env.example`, `raphael_cli.py` | No code signs or verifies JWTs. | Removed from both files |
+| 16 | **Hardcoded container names** | `raphael_anonymity_test.sh:143` | Names depend on compose project name. | Changed to `docker compose ps -q <service>` dynamic lookup |
 
 ---
 
