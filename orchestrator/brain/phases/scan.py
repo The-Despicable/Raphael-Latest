@@ -1,8 +1,8 @@
 import time
 
-from .models import Finding, PhaseResult, Severity
-from ...scanners.nuclei_scanner import NucleiScanner
-from .recon import run_recon
+from orchestrator.brain.phases.models import Finding, PhaseResult, Severity
+from orchestrator.scanners.nuclei_scanner import NucleiScanner
+from orchestrator.brain.phases.recon import run_recon
 
 
 async def run_scan(target: str, findings: list[Finding] = None,
@@ -15,15 +15,10 @@ async def run_scan(target: str, findings: list[Finding] = None,
         findings = recon.findings
 
     nuclei = nuclei_scanner or NucleiScanner()
-
-    # Extract URLs for nuclei scanning
-    http_findings = [f for f in findings if f.service in ("http", "https", "http-proxy", "http-alt", "https-alt")]
-    ports_with_http = set(f.port for f in http_findings if f.port)
-
-    scan_findings = list(findings) if findings else []
-
-    # Try nuclei against the target
+    http_findings = [f for f in (findings or []) if f.service in ("http", "https", "http-proxy", "http-alt", "https-alt")]
+    scan_findings = list(findings or [])
     nuclei_output = ""
+
     if nuclei.available:
         try:
             result = nuclei.scan(target, severity="low")
@@ -57,13 +52,9 @@ async def run_scan(target: str, findings: list[Finding] = None,
 
                     scan_findings.append(Finding(
                         phase="scan", type="vulnerability", target=target,
-                        host=target,
-                        port=port,
-                        severity=sev,
-                        cve=cve_id,
+                        host=target, port=port, severity=sev, cve=cve_id,
                         description=info.get("name", severity_raw),
-                        evidence=matched[:300],
-                        raw=nf,
+                        evidence=matched[:300], raw=nf,
                     ))
                 nuclei_output = f"nuclei: {result.get('findings_count', 0)} findings"
             else:

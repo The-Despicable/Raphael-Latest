@@ -1,6 +1,6 @@
 import time
 
-from .models import PhaseResult
+from orchestrator.brain.phases.models import PhaseResult
 
 
 async def run_exfil(target: str, findings: list = None) -> PhaseResult:

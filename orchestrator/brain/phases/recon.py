@@ -1,10 +1,10 @@
 import time
 import socket
 
-from .models import Finding, PhaseResult, Severity
-from ...scanners.nmap_scanner import NmapScanner
-from ...scanners.whatweb_scanner import WhatwebScanner
-from ...scanners.nuclei_scanner import NucleiScanner
+from orchestrator.brain.phases.models import Finding, PhaseResult, Severity
+from orchestrator.scanners.nmap_scanner import NmapScanner
+from orchestrator.scanners.whatweb_scanner import WhatwebScanner
+from orchestrator.scanners.nuclei_scanner import NucleiScanner
 
 
 async def run_recon(target: str, nmap_scanner: NmapScanner = None,
@@ -17,7 +17,6 @@ async def run_recon(target: str, nmap_scanner: NmapScanner = None,
     whatweb = whatweb_scanner or WhatwebScanner()
     nuclei = nuclei_scanner or NucleiScanner()
 
-    # 1. DNS resolution
     resolved_ip = None
     try:
         resolved_ip = socket.gethostbyname(target)
@@ -29,7 +28,6 @@ async def run_recon(target: str, nmap_scanner: NmapScanner = None,
     except socket.gaierror:
         pass
 
-    # 2. Port scan (top 1000)
     try:
         scan_result = nmap.scan_ports(target, ports="1-1000", rate=100)
         if "error" not in scan_result:
@@ -49,7 +47,6 @@ async def run_recon(target: str, nmap_scanner: NmapScanner = None,
     except Exception as e:
         raw_output = f"nmap error: {e}"
 
-    # 3. HTTP service detection (whatweb)
     if any(f.service in ("http", "https", "http-proxy", "http-alt", "https-alt") for f in findings):
         try:
             web_result = whatweb.scan(target)

