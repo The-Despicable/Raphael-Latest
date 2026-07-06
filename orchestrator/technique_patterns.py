@@ -164,6 +164,53 @@ TRIGGER_TECHNIQUES = [
      "  Focus on: Kerberoast, AS-REP roast, RBCD, Shadow Creds, ADCS\n"
      "  Certificate auth via certipy: certipy auth -pfx cert.pfx -dc-ip DC_IP\n"
      "  Use kerbrute for user enumeration (not ASREP which needs NTLM)"),
+
+    # ── Jenkins / CI/CD — real-world case: CVE-2024-23897 → DA ──
+    (r"(jenkins|ci.?cd|pipeline.*automation|groovy|script.?console)",
+     "Jenkins CI/CD server exposed → high-value target:\n"
+     "  CVE-2024-23897: arbitrary file read via CLI @ feature\n"
+     "    java -jar jenkins-cli.jar -s http://JENKINS_URL -auth USER:TOKEN connect-node @/etc/shadow\n"
+     "  Post-RCE: decrypt secrets offline via master.key + hudson.util.Secret\n"
+     "  Jenkins runs as SYSTEM on Windows — instant high privilege\n"
+     "  Groovy script console: use println 'id'.execute().text for RCE\n"
+     "  Dump build logs for tokens/credentials in CI/CD pipelines\n"
+     "  Pivot: harvested creds → ADCS abuse → DCSync → DA"),
+
+    # ── Shodan / FOFA / Internet scanning — IAB TTP ──
+    (r"(shodan|fofa|leakix|internet.*scan|attack.*surface|recon.*exposed)",
+     "Internet-wide scanning for initial access (Mommy/Miyako TTP):\n"
+     "  Shodan: search filters for PAN-OS, F5 Big-IP, Webmin, ScreenConnect\n"
+     "  FOFA: Chinese alternative with different coverage (OT/IoT devices)\n"
+     "  Leakix: finds leak/listener services, default creds, known vulns\n"
+     "  Typical targets: VPN gateways, firewalls, Jenkins, Citrix, Exchange\n"
+     "  Workflow: scan → CVE match → exploit PoC → internal recon → sell access\n"
+     "  OPSEC: route through VPN+Tor, burner VPS, no linguistic patterns\n"
+     "  Tools: Sliver C2, BloodHound, DNS tunneling, LOLBins for evasion"),
+
+    # ── Ransomware / RaaS / Extortion ──
+    (r"(ransomware|raas|ransomware.*service|double.*extort|triple.*extort|affiliate.*model)",
+     "Ransomware affiliate/franchise model TTPs:\n"
+     "  RaaS operators handle: encryptor dev, payment portal, leak site, negotiation\n"
+     "  Affiliates handle: initial access, lateral movement, data staging\n"
+     "  Revenue split: operator 20-40%, affiliate 60-80%\n"
+     "  Access brokers sell VPN/RDP footholds to affiliates ($100-$10K per access)\n"
+     "  Common kill chain: VPN/SSH abuse → BloodHound → LDAP domain dump →\n"
+     "    DCSync → data exfil → encrypt all endpoints simultaneously\n"
+     "  Double extortion: exfiltrate + encrypt. Triple extortion: + DDoS or customer notification\n"
+     "  Living-off-the-land: PowerShell, WMI, PsExec, SC, Net, Reg, Vssadmin\n"
+     "  Defense evasion: disable AV/EDR via BYOVD, AMSI bypass, ETW patching"),
+
+    # ── VPN / Firewall as initial access vector ──
+    (r"(vpn|palo.*alto|sonicwall|forti.*gate|pulse.*secure|f5.*big|no.*mfa|credential.*stuff)",
+     "VPN/firewall as initial access (most common ransomware vector):\n"
+     "  CVE-2024-53704 SonicWall SSL VPN — SQLi auth bypass\n"
+     "  CVE-2024-40766 SonicOS — improper access control (Akira/Fog abuse)\n"
+     "  CVE-2024-3400 PAN-OS — command injection (HellCat/Mommy abuse)\n"
+     "  CVE-2024-0012 PAN-OS — auth bypass\n"
+     "  Technique: scan Shodan → match version → exploit → VPN tunnel → internal network\n"
+     "  Colonial Pipeline: single reused VPN password, no MFA, got ~100GB in 2 hours\n"
+     "  Once inside: same tools as any Windows/AD kill chain\n"
+     "  Prevention: MFA on ALL VPN accounts, credential monitoring, stale account cleanup"),
 ]
 
 def match_techniques(text: str, max_matches: int = 4) -> list:

@@ -464,3 +464,121 @@ NTLM disabled → all tools must support -k/-kerberos
 | PrinterBug (py) | DarkCorp |
 | dacledit.py (impacket PR #1291) | Absolute |
 | username-anarchy | Absolute |
+
+---
+
+## REAL-WORLD BLACK HAT CASE STUDIES — Operational TTPs for Brain Training
+
+These aren't CTF machines — they're documented real adversary operations. Each entry distills the exact kill chain, tooling, and operator OPSEC patterns observed in the wild. Use these to train Raphael's threat-modeling and technique selection.
+
+---
+
+### Mommy/Miyako — Access Broker Operation (Intel 471, 2025)
+
+**Source:** Leaked "Guide to Access Brokering" + operator interview (Osint10x). Mommy (a.k.a. Miyako, Miya) is a self-described HellCat admin who sells network access to nation-state actors.
+
+**OPSEC Quote (from interview):**
+> *"I route all operations through layers of VPNs and TOR nodes, use burner devices, and maintain strict OPSEC. My code and communication avoid linguistic patterns that could lead to attribution. I also diversify my monetization efforts to avoid creating patterns."*
+
+**Kill Chain from the Guide:**
+
+| Step | Technique | Tool | Raphael Has? |
+|------|-----------|------|-------------|
+| 1 | Internet scan for exposed enterprise VPN/firewall | Shodan, FOFA, Leakix | ❌ — no Shodan API wired |
+| 2 | Exploit known CVEs (PAN-OS, F5 Big-IP, Webmin, ScreenConnect) | Public PoCs + Metasploit | ❌ — no automated CVE exploitation flow |
+| 3 | Internal recon & privileged account mapping | BloodHound, Nmap, OWASP Amass | ✅ (nmap) ❌ (BloodHound collector not wired) |
+| 4 | C2 deployment | Sliver (in-memory) | ✅ — Sliver server exists |
+| 5 | Persistence via cron / scheduled tasks / registry Run keys | LOLBins | ❌ — no LOLBin library |
+| 6 | Evasion | DNS tunneling + LOLBins | ✅ — DNS tunnel exists in exfil/ |
+| 7 | Data staging + exfiltration | Rclone / custom | ❌ |
+| 8 | Access monetization | Forums (XSS, Exploit.in, BreachForums) | N/A |
+
+**CVEs exploited (confirmed):** CVE-2024-3400 (PAN-OS), CVE-2024-1709 (ScreenConnect), CVE-2024-3094 (XZ backdoor), CVE-2024-1708, CVE-2021-4436, CVE-2025-0282 (Ivanti), OpenBSD zero-day
+
+**Raphael Gap:** No automated Shodan/FOFA integration, no exploit automation flow, BloodHound collector not deployed via Sliver, no LOLBin library for post-exploitation.
+
+---
+
+### HellCat Ransomware — Full Infection Chain (Picus Security, Mar 2025)
+
+**Source:** Reverse-engineered from VirusTotal samples + incident response. HellCat emerged mid-2024, overlaps with Morpheus (shared builder).
+
+**Kill Chain:**
+
+```
+Spearphish / Jira 0-day
+  → S1.ps1 (Registry Run key persistence)
+  → Isma.ps1 (AMSI bypass via in-memory patching)
+  → Shellcode.ps1 (reflective code loading — no file disk hit)
+  → Stager.woff (SliverC2 shellcode, memory-resident)
+  → Network discovery via Netscan
+  → Lateral via Netcat + stolen creds
+  → Data exfiltration + encryption
+  → Double extortion (leak site + encrypt)
+```
+
+| Stage | Technique | MITRE ID |
+|-------|-----------|----------|
+| Initial Access | Spearphishing attachment / Jira 0-day | T1566.001 / T1190 |
+| Persistence | Registry Run Key (`HKCU\...\Run\maintenance`) | T1547.001 |
+| Defense Evasion | AMSI bypass via PowerShell patching | T1562.001 |
+| Defense Evasion | Reflective code loading (no disk write) | T1620 |
+| C2 | SliverC2 in-memory via woff shellcode | T1059.001 |
+| Discovery | Netscan for network mapping | T1046 |
+| Lateral Movement | Netcat + signed binary proxy execution | T1021 / T1218 |
+| Impact | Double extortion + intermittent encryption | T1486 |
+
+**Notable:** Demanded $125K in "baguettes" from Schneider Electric for PR pressure — psychological extortion beyond standard double-extortion.
+
+**Raphael Gap:** Raphael has AMSI patching and ETW suppression in `orchestrator/evasion/` but no automated reflective loader deployment. The Sliver integration exists but doesn't deploy through a phased PowerShell chain.
+
+---
+
+### Colonial Pipeline — DarkSide Ransomware (Mandiant/FBI, 2021)
+
+**Source:** FBI investigation, Mandiant IR (FireEye), CISP reports.
+
+**The single-password lesson:** A VPN account no longer in use, still active, protected by a reused password (no MFA). The password was discovered in a prior breach's leaked credential dump.
+
+**Kill Chain:**
+
+| Step | Detail | How It Happened |
+|------|--------|----------------|
+| 1 | Credential acquisition | DarkSide purchased/found a leaked VPN password from a prior unrelated breach |
+| 2 | VPN access (no MFA) | Reused password on Colonial's legacy VPN account — still active despite no longer needed |
+| 3 | Network mapping | ~2 hours of reconnaissance via the VPN tunnel |
+| 4 | Data theft | ~100 GB exfiltrated before encryption |
+| 5 | Ransomware deployment | DarkSide encryptor (RSA-2048 + Salsa20) — IT systems only |
+| 6 | Pipeline shutdown | Colonial voluntarily shut 5,500 miles to prevent OT spread |
+| 7 | Extortion | $4.4M paid (75 BTC), US DoJ later recovered ~63.7 BTC |
+
+**Impact:** 45% of US East Coast fuel supply disrupted, state of emergency declared, panic buying, gas shortages across 17 states.
+
+**Raphael Gap:** Nothing — this is primarily a credential/access case, not a technical bypass. Reinforces the value of credential stuffing against VPNs.
+
+---
+
+### Jenkins CI/CD → Domain Admin (Damon Small, HOU.SEC.CON 2024)
+
+**Source:** Red team engagement by 8-person team over ~3 months. Client: large enterprise.
+
+**Kill Chain:**
+
+| Step | Technique | Tool |
+|------|-----------|------|
+| 1 | Internet-exposed Jenkins server | Shodan scan |
+| 2 | Arbitrary file read via CLI `@` feature (CVE-2024-23897) | Jenkins CLI + `/etc/shadow` read |
+| 3 | Crack shadow hashes | hashcat (weak passwords) |
+| 4 | RCE on Jenkins (running as SYSTEM) | Jenkins script console / Groovy |
+| 5 | Harvest Jenkins secrets | `master.key` + `hudson.util.Secret` offline decrypt |
+| 6 | Lateral movement with harvested creds | PsExec / WMI / WinRM |
+| 7 | ADCS abuse for privilege escalation | Certipy |
+| 8 | DCSync → Domain Admin | secretsdump.py |
+
+**Small's quote:** *"Breaking is fast, fixing is slow"* — client estimated 3 years to remediate all identified gaps.
+
+**The cumulative gap principle:** No single flaw was critical in isolation. The risk was the combination — exposed Jenkins + bad passwords + no network segmentation + weak ADCS configuration + no detection engineering.
+
+**Raphael Gap:** CVE-2024-23897 exploitation not automated. Jenkins Groovy-based RCE not in technique patterns.
+
+---
