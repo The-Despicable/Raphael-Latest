@@ -15,3 +15,8 @@ orchestrator/db/
 *.log
 .DS_Store
 nohup.out
+*__pycache__/
+anonymity_violation.log
+*.ovpn
+*.pdf
+:Zone.Identifier
