@@ -71,7 +71,7 @@ async def start_engage(
     queue = get_queue()
     eng_id = queue.enqueue(req.target, phases, persona=persona, webhook_url=req.webhook_url or "")
 
-    record_event(action="engage_start", target=req.target, phase="ci_api", verdict="queued", details={
+    record_event(action="engage_start", target=req.target, phase="ci_api", verdict="queued", metadata={
         "eng_id": eng_id, "persona": persona, "phases": phases, "webhook": bool(req.webhook_url),
     })
 
@@ -164,8 +164,44 @@ async def quick_scan(
     )
 
     record_event(action="quick_scan", target=req.target, phase="ci_api",
-                 verdict="completed", findings=result.get("total_findings", 0),
-                 details={"persona": persona, "no_proxy": req.no_proxy})
+                 verdict="completed",
+                 metadata={"persona": persona, "no_proxy": req.no_proxy,
+                           "findings": result.get("total_findings", 0)})
+    return result
+
+
+class AgentEngageRequest(BaseModel):
+    target: str
+    objective: Optional[str] = "compromise"
+    persona: Optional[str] = None
+    phases: Optional[list[str]] = None
+
+
+@router.post("/agent-engage")
+async def agent_engage(
+    req: AgentEngageRequest,
+    auth=Depends(require_scope("engagements:rw")),
+):
+    if not default_scope.check(req.target):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Target {req.target} is not in allowed scope",
+        )
+
+    persona = req.persona or (default_scope.persona if default_scope.persona else "")
+
+    from orchestrator.agents.engage import run_agent_engage
+    result = await run_agent_engage(
+        target=req.target,
+        objective=req.objective,
+        persona=persona,
+        phases=req.phases,
+    )
+
+    record_event(action="agent_engage", target=req.target, phase="ci_api",
+                 verdict="completed",
+                 metadata={"persona": persona, "phases": req.phases, "elapsed": result.get("elapsed_seconds"),
+                           "findings": result.get("total_findings", 0)})
     return result
 
 

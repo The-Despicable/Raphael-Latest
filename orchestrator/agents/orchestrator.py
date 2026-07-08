@@ -8,6 +8,7 @@ from orchestrator.agents.goal_tree import (
     GoalTree, GoalNode, GoalValidator, recon_sweep,
 )
 from orchestrator.agents.memory import AgentMemory
+from orchestrator.agents.stealth import StealthController
 from orchestrator.agents.supervisor import AgentSupervisor
 from orchestrator.events import EventBus, event_bus
 from orchestrator.providers import call_model, resolve_persona_override
@@ -54,10 +55,12 @@ class OrchestratorAgent(BaseAgent):
     max_consecutive_failures: int = 3
 
     def __init__(self, bus: Optional[EventBus] = None, supervisor: Optional[AgentSupervisor] = None,
-                 persona: str = "", memory: Optional[AgentMemory] = None):
+                 persona: str = "", memory: Optional[AgentMemory] = None,
+                 stealth: Optional[StealthController] = None):
         super().__init__(bus)
         self.supervisor = supervisor or AgentSupervisor(bus=self.bus)
         self.memory = memory or AgentMemory()
+        self.stealth = stealth or StealthController()
         self.persona = persona
         self._system_override = resolve_persona_override(persona) if persona else None
         self._active_tasks: dict[str, Task] = {}

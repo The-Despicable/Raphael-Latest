@@ -149,6 +149,7 @@ SERVICE_DESCRIPTION = """\
   [green]/team[/] [wf] [q]      Run team workflow (debate, analyze, code, execute, plan)
   [green]/scan[/] <target>      Scan target [--ports N-M] [--nuclei-severity <sev>] [--no-proxy]
   [green]/autonomous[/] <tgt>   Full autonomous engagement [--no-proxy] [--phases r,s,e,...]
+  [green]/agent-engage[/] <tgt> Multi-agent AI engagement [--persona X] [--phases r,s,...]
   [green]/exploit[/] <target>   Exploit target [--url <url>]
   [green]/stress[/] <target>    Stress test [--method HTTP] [--threads 50] [--duration 60]
   [green]/cloak[/] <url>        Browse URL via Tor [--screenshot] [--interact]
@@ -596,6 +597,33 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
             result = await autonomous.handle(target, phases=phases, no_proxy=no_proxy)
         await event_bus.publish("cli", "autonomous_done", {"target": target, "status": "done"})
         pp(result, title=f"Autonomous: {target}")
+        return ""
+
+    if cmd == "agent-engage":
+        if not args:
+            console.print("[yellow]Usage: /agent-engage <target> [--persona X] [--phases r,s,...][/]")
+            return ""
+        target = args[0]
+        persona = state.get("persona", "")
+        phases = None
+        for i, a in enumerate(args[1:], 1):
+            if a == "--persona" and i + 1 < len(args):
+                persona = args[i + 1]
+            elif a == "--phases" and i + 1 < len(args):
+                phases = [p.strip() for p in args[i + 1].split(",")]
+
+        if not default_scope.check(target):
+            console.print(f"[red]Target {target} not in allowed scope.[/]")
+            return ""
+
+        from orchestrator.agents.engage import run_agent_engage
+        await event_bus.publish("cli", "agent_engage_start", {
+            "target": target, "persona": persona, "phases": phases,
+        })
+        with console.status(f"[cyan]Running multi-agent engagement on {target} (persona={persona})..."):
+            result = await run_agent_engage(target, persona=persona, phases=phases)
+        await event_bus.publish("cli", "agent_engage_done", {"target": target, "status": "done"})
+        pp(result, title=f"Agent Engage: {target}")
         return ""
 
     if cmd == "exploit":

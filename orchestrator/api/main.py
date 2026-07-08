@@ -52,7 +52,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                 phase="ci_api",
                 verdict="success" if response.status_code < 400 else "error",
                 latency=latency,
-                details={"status_code": response.status_code, "client_ip": request.client.host if request.client else "unknown"},
+                metadata={"status_code": response.status_code, "client_ip": request.client.host if request.client else "unknown"},
             )
         return response
 
