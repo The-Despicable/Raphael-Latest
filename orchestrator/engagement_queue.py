@@ -22,6 +22,8 @@ class Engagement:
     created_at: str = ""
     updated_at: str = ""
     result: dict = field(default_factory=dict)
+    persona: str = ""
+    webhook_url: str = ""
 
 
 class EngagementQueue:

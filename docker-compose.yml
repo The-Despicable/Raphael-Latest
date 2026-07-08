@@ -288,6 +288,29 @@ services:
     logging: *default-logging
     restart: unless-stopped
 
+  raphael-api:
+    <<: *host-config
+    build:
+      context: .
+      dockerfile: ./docker/api.Dockerfile
+    ports:
+      - "3900:3900"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=raphael-api
+      - RAPHAEL_PATH=/raphael
+      - CI_API_PORT=3900
+    volumes:
+      - ./orchestrator:/raphael/orchestrator
+      - ./cli:/raphael/cli
+      - ./data:/data
+    depends_on:
+      - tor-proxy
+    networks:
+      - raphael-net
+    logging: *default-logging
+    restart: unless-stopped
+
   caido:
     image: caido/caido:latest
     ports:
