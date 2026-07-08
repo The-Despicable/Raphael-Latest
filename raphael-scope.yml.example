@@ -1,0 +1,31 @@
+# Raphael scope enforcement — commit this to your repo root as raphael-scope.yml
+# The CI pipeline checks every target against this file before engaging.
+engagement:
+  # Required: list of authorized target domains
+  allowed_domains:
+    - targetcorp.com
+    - staging.targetcorp.io
+
+  # Optional: list of authorized IP ranges (CIDR notation)
+  allowed_ips:
+    - 10.0.0.0/8
+    - 192.168.1.0/24
+
+  # Optional: domains to explicitly exclude from scanning
+  excluded:
+    - admin.targetcorp.com
+    - production.targetcorp.com
+
+  # Optional: default persona for this engagement
+  # Values: default, redteam, blackhat
+  # If unset, the CI API defaults to 'default' (standard Raphael prompt)
+  persona: redteam
+
+  # Optional: rate limit between phases (seconds)
+  rate_limit: 1.0
+
+  # Optional: restrict scanning to business hours
+  business_hours_only: false
+  business_hours_start: "09:00"
+  business_hours_end: "18:00"
+  business_hours_tz: "America/New_York"

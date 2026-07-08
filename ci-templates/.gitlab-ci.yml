@@ -1,0 +1,67 @@
+# Raphael CI/CD — GitLab Pipeline Template
+# Usage:
+#   1. Set RAPHAEL_API_KEY in CI/CD variables
+#   2. Set RAPHAEL_API URL in CI/CD variables
+#   3. Commit raphael-scope.yml to repo root
+#   4. Trigger with: curl -X POST "https://gitlab.com/api/v4/projects/$PROJECT_ID/trigger/pipeline"
+
+variables:
+  RAPHAEL_API: "${RAPHAEL_API:-http://raphael-api:3900}"
+  RAPHAEL_SCOPE_FILE: "raphael-scope.yml"
+
+stages:
+  - preflight
+  - scan
+  - report
+
+preflight:
+  stage: preflight
+  image: python:3.11-slim
+  script:
+    - pip install pyyaml
+    - python3 -c "
+import yaml, sys
+with open('$RAPHAEL_SCOPE_FILE') as f:
+    scope = yaml.safe_load(f)
+domains = scope.get('engagement', {}).get('allowed_domains', [])
+ips = scope.get('engagement', {}).get('allowed_ips', [])
+target = '${TARGET}'
+if target not in domains and target not in ips:
+    print(f'ERROR: {target} not in allowed scope')
+    sys.exit(1)
+print(f'{target} is in scope')
+"
+  rules:
+    - if: '$TARGET'
+
+scan:
+  stage: scan
+  image: raphael/raphael-ci:latest
+  script:
+    # Run engagement — supports blackhat persona for red-team ops
+    - raphael-ci engage run "${TARGET}"
+      --persona "${PERSONA:-redteam}"
+      --phases "${PHASES:-recon,scan}"
+      ${NO_PROXY:+--no-proxy}
+  artifacts:
+    paths:
+      - raphael-report.sarif
+    expire_in: 30 days
+  rules:
+    - if: '$TARGET'
+
+report:
+  stage: report
+  image: python:3.11-slim
+  script:
+    - pip install httpx
+    - python3 -c "
+import httpx, os, sys
+api_key = os.environ.get('RAPHAEL_API_KEY', '')
+api = os.environ.get('RAPHAEL_API', 'http://raphael-api:3900')
+# Fetch latest engagement report
+r = httpx.get(f'{api}/v1/ci/health', headers={'Authorization': f'Bearer {api_key}'})
+print('Raphael API:', r.json().get('status'))
+"
+  rules:
+    - if: '$TARGET'

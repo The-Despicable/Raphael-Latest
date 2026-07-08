@@ -1,0 +1,92 @@
+// Raphael CI/CD — Jenkins Pipeline Template
+//
+// Prerequisites:
+//   1. Install raphael-ci CLI on the Jenkins agent or use a Docker agent
+//   2. Set credentials:
+//      - RAPHAEL_API_KEY (Secret text)
+//      - WEBHOOK_URL (optional, Secret text)
+//   3. Set environment variables:
+//      - RAPHAEL_API (default: http://raphael-api:3900)
+//   4. Commit raphael-scope.yml to repo root
+//
+// Example trigger (with blackhat persona):
+//   curl -X POST "$JENKINS_URL/job/raphael-pentest/buildWithParameters?TARGET=targetcorp.com&PERSONA=blackhat"
+
+pipeline {
+    agent {
+        docker {
+            image 'raphael/raphael-ci:latest'
+            args '--network host'
+        }
+    }
+
+    parameters {
+        string(name: 'TARGET', description: 'Target domain or IP')
+        choice(name: 'PERSONA', choices: ['redteam', 'blackhat', 'default'], description: 'Operator persona')
+        string(name: 'PHASES', defaultValue: 'recon,scan', description: 'Comma-separated phases')
+        booleanParam(name: 'NO_PROXY', defaultValue: false, description: 'Skip Tor proxy')
+    }
+
+    environment {
+        RAPHAEL_API = "${env.RAPHAEL_API ?: 'http://raphael-api:3900'}"
+        RAPHAEL_API_KEY = credentials('RAPHAEL_API_KEY')
+        WEBHOOK_URL = credentials('WEBHOOK_URL')
+    }
+
+    stages {
+        stage('Scope Check') {
+            steps {
+                script {
+                    if (!fileExists('raphael-scope.yml')) {
+                        error 'raphael-scope.yml not found — scope enforcement requires this file'
+                    }
+                    def scope = readYaml file: 'raphael-scope.yml'
+                    def domains = scope.engagement?.allowed_domains ?: []
+                    def ips = scope.engagement?.allowed_ips ?: []
+                    def target = params.TARGET
+                    if (!(target in domains) && !(target in ips)) {
+                        error "${target} is not in allowed scope — aborting"
+                    }
+                    echo "${target} is in scope"
+                }
+            }
+        }
+
+        stage('Raphael Engage') {
+            steps {
+                script {
+                    def webhookFlag = env.WEBHOOK_URL ? "--webhook ${env.WEBHOOK_URL}" : ''
+                    def noProxyFlag = params.NO_PROXY ? '--no-proxy' : ''
+                    sh """
+                        raphael-ci engage run ${params.TARGET} \
+                            --persona ${params.PERSONA} \
+                            --phases ${params.PHASES} \
+                            ${noProxyFlag} \
+                            ${webhookFlag}
+                    """
+                }
+            }
+        }
+
+        stage('Report') {
+            steps {
+                sh 'raphael-ci health'
+                sh 'mkdir -p reports'
+                sh 'curl -s "${RAPHAEL_API}/v1/ci/health" -H "Authorization: Bearer ${RAPHAEL_API_KEY}" | tee reports/raphael-health.json'
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'reports/**', fingerprint: true
+        }
+        failure {
+            emailext(
+                subject: "[Raphael] Scan of ${params.TARGET} FAILED",
+                body: "Raphael engagement against ${params.TARGET} failed.\nCheck ${env.BUILD_URL} for details.",
+                to: "${env.CHANGE_AUTHOR_EMAIL ?: 'team@example.com'}"
+            )
+        }
+    }
+}

@@ -709,6 +709,28 @@ Mount this in the existing brain API, and CI pipelines can `curl` it today.
 
 ---
 
+## Current Progress
+
+| Phase | What | Status | Files |
+|-------|------|--------|-------|
+| **Phase 0** | EventBus, scope, sandbox | ✅ Done | `orchestrator/events.py`, `scope.py`, `sandbox.py` |
+| **Phase 1a** | CI/CD API + CLI tool | ✅ Done | `orchestrator/api/ci.py`, `api/main.py`, `cli/raphael_ci.py`, `docker/api.Dockerfile` |
+| **Phase 1b** | Persona wiring | ✅ Done | `providers.py:resolve_persona_override()`, wired into `autonomous.handle()`, `EngagementQueue`, API endpoints |
+| **Phase 1c** | CI templates | ✅ Done | `.github/workflows/raphael-pentest.yml`, `ci-templates/.gitlab-ci.yml`, `ci-templates/Jenkinsfile`, `raphael-scope.yml.example` |
+| **Phase 1d** | Hardening + audit logging | ⬜ Pending | Auth hardening, rate limiting, audit trail |
+
+### Commit History
+
+```
+8fb3b27  Phase 0 + Phase 1a + Phase 1b — full F2 infrastructure with persona wiring
+51b6dbb  checkpoint before F2 CI/CD integration
+e8ef1f7  Add P18 (Operational Safety) + P19 (RSI Safety)
+```
+
+---
+
+
+
 ## Summary
 
 | Upgrade | Replaces/Enhances | Gives Raphael |
