@@ -7,9 +7,25 @@ from orchestrator.agents.base import (
 from orchestrator.agents.goal_tree import (
     GoalTree, GoalNode, GoalValidator, recon_sweep,
 )
+from orchestrator.agents.memory import AgentMemory
 from orchestrator.agents.supervisor import AgentSupervisor
 from orchestrator.events import EventBus, event_bus
 from orchestrator.providers import call_model, resolve_persona_override
+
+
+def _check_hitl_orchestrator(goal_type: GoalType, target: str) -> bool:
+    """Orchestrator-level HITL gate for high-risk goals."""
+    import os
+    if os.getenv("RAPHAEL_HITL_BYPASS"):
+        return True
+    if goal_type in (GoalType.EXPLOIT, GoalType.POSTEX, GoalType.LATERAL, GoalType.EXFIL):
+        print(f"\n⚠ HITL GATE — {goal_type.value} phase against {target}")
+        print("  Proceed? [y/N] ", end="", flush=True)
+        try:
+            return input().strip().lower() == "y"
+        except (EOFError, KeyboardInterrupt):
+            return False
+    return True
 
 logger = logging.getLogger("orchestrator_agent")
 
@@ -38,9 +54,10 @@ class OrchestratorAgent(BaseAgent):
     max_consecutive_failures: int = 3
 
     def __init__(self, bus: Optional[EventBus] = None, supervisor: Optional[AgentSupervisor] = None,
-                 persona: str = ""):
+                 persona: str = "", memory: Optional[AgentMemory] = None):
         super().__init__(bus)
         self.supervisor = supervisor or AgentSupervisor(bus=self.bus)
+        self.memory = memory or AgentMemory()
         self.persona = persona
         self._system_override = resolve_persona_override(persona) if persona else None
         self._active_tasks: dict[str, Task] = {}
@@ -124,33 +141,42 @@ class OrchestratorAgent(BaseAgent):
                     leaf.error = f"No agent for {leaf.type.value}"
                     continue
 
-                task = Task(
-                    id=self._new_task_id(),
-                    goal_type=leaf.type,
-                    target=leaf.target,
-                    agent_name=agent.name,
-                )
-                self._active_tasks[task.id] = task
-                leaf.status = TaskStatus.RUNNING
-                context.tasks.append(task)
+                    if not _check_hitl_orchestrator(leaf.type, leaf.target):
+                        logger.info(f"Orchestrator HITL rejected {leaf.type.value} against {leaf.target}")
+                        leaf.status = TaskStatus.CANCELLED
+                        leaf.error = "Rejected by HITL"
+                        continue
 
-                result = await agent.run(task, context, system_override=self._system_override)
-                leaf.status = result.status
-                leaf.findings = [f.to_dict() for f in result.findings]
-                if result.status == TaskStatus.FAILED:
-                    leaf.error = result.error
+                    task = Task(
+                        id=self._new_task_id(),
+                        goal_type=leaf.type,
+                        target=leaf.target,
+                        agent_name=agent.name,
+                    )
+                    self._active_tasks[task.id] = task
+                    leaf.status = TaskStatus.RUNNING
+                    context.tasks.append(task)
 
-                await self.bus.publish("orchestrator", "task_complete", {
-                    "task_id": task.id,
-                    "goal_type": leaf.type.value,
-                    "status": leaf.status.value,
-                    "findings_count": len(result.findings),
-                })
+                    result = await agent.run(task, context, system_override=self._system_override)
+                    leaf.status = result.status
+                    leaf.findings = [f.to_dict() for f in result.findings]
+                    if result.status == TaskStatus.FAILED:
+                        leaf.error = result.error
 
-                if result.status == TaskStatus.DONE:
-                    completed_tasks.append(task)
+                    for f in result.findings:
+                        self.memory.store_finding(f)
 
-                del self._active_tasks[task.id]
+                    await self.bus.publish("orchestrator", "task_complete", {
+                        "task_id": task.id,
+                        "goal_type": leaf.type.value,
+                        "status": leaf.status.value,
+                        "findings_count": len(result.findings),
+                    })
+
+                    if result.status == TaskStatus.DONE:
+                        completed_tasks.append(task)
+
+                    del self._active_tasks[task.id]
 
         return completed_tasks
 
