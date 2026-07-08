@@ -50,6 +50,9 @@ _CURATED = [
         {"url": "/api/docs", "methods": "GET", "function": "api_docs", "description": "API documentation page"},
         {"url": "/logout", "methods": "GET", "function": "logout", "description": "Logout and clear session"},
         {"url": "/", "methods": "GET", "function": "index", "description": "Root — redirects to /login"},
+        # --- HTB-style challenge patterns ---
+        {"url": "/api/options", "methods": "GET", "function": "api_options", "description": "HTB game challenge — returns all valid commands including secret/Easter egg keys that reveal flags"},
+        {"url": "/api/monitor", "methods": "POST", "function": "api_monitor", "description": "HTB game challenge — submit a command; returns flag if the secret hidden command is used"},
     ]
 
 WAF_KNOWLEDGE = [

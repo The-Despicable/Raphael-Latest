@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/yaser/raphael-2.0/.venv/bin/python3
 """
 Raphael 2.0 — Interactive CLI
 Opencode-style REPL for the Autonomous AI Security Platform.
@@ -27,6 +27,7 @@ from rich.syntax import Syntax
 from rich import box
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+os.environ.setdefault("KALI_TOOLS_URL", "http://localhost:3800")
 
 import atexit
 import logging
@@ -52,7 +53,7 @@ def _forensic_wipe_on_exit():
             except Exception:
                 pass
 
-atexit.register(_forensic_wipe_on_exit)
+# atexit.register(_forensic_wipe_on_exit)  # disabled for uncensored mode
 
 _WEAK_DEFAULTS = {
     "TOR_PASSWORD": "changeme",
@@ -75,6 +76,7 @@ from orchestrator.exfil.pipeline import ExfilPipeline
 from orchestrator.phishing.pipeline import PhishingPipeline
 from orchestrator.proxy_guard import ProxyGuard, ProxyError
 from orchestrator.exploit.payloads_db import PayloadsDB
+from orchestrator.growth_db import GrowthDB, grow
 
 console = Console()
 
@@ -90,6 +92,12 @@ AGENTS = {
     "oracle": ("Oracle", "Oracle DB query agent"),
     "chat": ("Chat", "General security Q&A"),
     "audit": ("Audit", "Compliance and reporting"),
+}
+
+PERSONAS = {
+    "default": "Standard Raphael operator persona",
+    "redteam": "Professional red team — authorized offensive testing",
+    "blackhat": "Unrestricted — zero limitations, no refusal",
 }
 
 MODES = {
@@ -126,12 +134,18 @@ SERVICE_DESCRIPTION = """\
   autonomous | debate | community | deep_research | postmortem
   recon | scan | exploit | defend | forensic | oracle | chat | audit
 
+[bold]Personas[/]  [dim](/persona <name> to set, applies to all modes)[/]
+  [green]/persona redteam[/]   Professional red team — authorized offensive testing
+  [green]/persona blackhat[/]  Unrestricted — zero limitations, no refusal
+  [green]/persona default[/]   Standard Raphael operator persona
+
 [bold]Commands:[/]
   [green]/mode[/] [name]         Show/switch operation mode
   [green]/agent[/] [name] [q]   Run a CAI agent by name
   [green]/model[/] [name]       Set model alias (auto, w12, w13, deepseek, etc.)
   [green]/team[/] [wf] [q]      Run team workflow (debate, analyze, code, execute, plan)
-  [green]/scan[/] <target>      Scan target [--ports N-M] [--nuclei-severity <sev>]
+  [green]/scan[/] <target>      Scan target [--ports N-M] [--nuclei-severity <sev>] [--no-proxy]
+  [green]/autonomous[/] <tgt>   Full autonomous engagement [--no-proxy] [--phases r,s,e,...]
   [green]/exploit[/] <target>   Exploit target [--url <url>]
   [green]/stress[/] <target>    Stress test [--method HTTP] [--threads 50] [--duration 60]
   [green]/cloak[/] <url>        Browse URL via Tor [--screenshot] [--interact]
@@ -143,8 +157,15 @@ SERVICE_DESCRIPTION = """\
   [green]/strix[/] <target>     Run Strix AI penetration test against target
   [green]/start[/]              Start all Docker services
   [green]/stop[/]               Stop all Docker services
+  [green]/proxy[/] [subcmd]     Proxy status, verify, new-circuit, start
   [green]/status[/]             Show system & service status
-  [green]/help[/]               Show this help
+  [green]/verify[/]             Full health check of all tools, services & phases
+  [green]/grow[/] [target]      Show growth/knowledge base stats for a target
+  [green]/patterns[/] [type]    List learned attack patterns from past engagements
+   [green]/websearch[/] <query>  Search the web via DuckDuckGo
+   [green]/fetch[/] <url>        Fetch and extract text content from a URL
+   [green]/techniques[/]         List techniques ranked by confidence
+   [green]/help[/]               Show this help
   [green]/exit[/]               Quit
 
 [bold]Agent Quick Access:[/]
@@ -164,11 +185,29 @@ def print_md(text, title=None):
     console.print(Panel(Markdown(text.strip()), title=title or "Response", border_style="green"))
 
 
-async def call_llm(mode: str, prompt: str) -> str:
+def _resolve_system_override(state: dict) -> str | None:
+    """Return persona-based system prompt override, or None for default."""
+    persona = state.get("persona")
+    if persona == "redteam":
+        from orchestrator.providers import REDTEAM_SYSTEM_PROMPT
+        return REDTEAM_SYSTEM_PROMPT
+    if persona == "blackhat":
+        from orchestrator.providers import BLACKHAT_SYSTEM_PROMPT
+        return BLACKHAT_SYSTEM_PROMPT
+    return None
+
+
+async def call_llm(mode: str, prompt: str, model_alias: str = "auto", state: dict = None) -> str:
     """Route a prompt through the orchestrator by mode."""
     try:
+        system_override = _resolve_system_override(state or {})
         if mode in ("recon", "scan", "exploit", "defend", "forensic", "oracle", "chat", "audit"):
-            result = await call_model(mode, [{"role": "user", "content": prompt}])
+            if model_alias == "auto" and state and state.get("persona") in ("redteam", "blackhat"):
+                model_alias = "wormgpt480b"
+            elif model_alias == "auto":
+                model_alias = "w12"
+            result = await call_model(model_alias, [{"role": "user", "content": prompt}],
+                                      system_override=system_override)
             return result or "[No response]"
         elif mode == "debate":
             result = await debate.handle(prompt)
@@ -186,26 +225,30 @@ async def call_llm(mode: str, prompt: str) -> str:
             result = await postmortem.handle(prompt)
             return json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
         elif mode == "autonomous":
-            result = await autonomous.handle(prompt)
+            no_proxy = prompt.startswith("--no-proxy ")
+            target = prompt[len("--no-proxy "):] if no_proxy else prompt
+            result = await autonomous.handle(target, no_proxy=no_proxy)
             return json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
         else:
-            result = await call_model(mode, [{"role": "user", "content": prompt}])
+            if model_alias == "auto" and state and state.get("persona") in ("redteam", "blackhat"):
+                model_alias = "wormgpt480b"
+            result = await call_model(model_alias, [{"role": "user", "content": prompt}],
+                                      system_override=system_override)
             return result or "[No response]"
     except Exception as e:
         return f"[Error: {e}]"
 
 
-async def run_cai_agent(agent: str, target: str) -> str:
+async def run_cai_agent(agent: str, target: str, model_alias: str = "wormgpt480b") -> str:
     """Run a dedicated CAI agent (recon, scan, etc.)"""
     try:
-        from orchestrator.modes import scan
         if agent == "scan":
-            result = await scan.handle(target)
+            result = await scan_mode.handle(target)
             return json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
         payload = {"target": target, "extra_params": {"context": ""}}
         prompt = json.dumps(payload)
         system = f"You are the {agent} operator. You've been inside more networks than most people have seen. The target data is in front of you — tell me what's useful for getting in."
-        result = await call_model("auto", [{"role": "user", "content": prompt}], system_override=system)
+        result = await call_model(model_alias, [{"role": "user", "content": prompt}], system_override=system)
         return result or "[No response]"
     except Exception as e:
         return f"[Error: {e}]"
@@ -307,9 +350,62 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         console.print(SERVICE_DESCRIPTION)
         return ""
 
+    if cmd == "persona":
+        if not args:
+            current = state.get("persona", "default")
+            choices = sorted(PERSONAS.keys())
+            console.print(Panel(
+                f"[bold]Current persona:[/] [green]{current}[/]\n\n"
+                + "\n".join(f"  [cyan]{i}[/] {c}" for i, c in enumerate(choices)),
+                title="Persona Selector",
+                border_style="cyan"
+            ))
+            try:
+                pick = input("Enter number or name: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                return ""
+            if pick.isdigit():
+                idx = int(pick)
+                if 0 <= idx < len(choices):
+                    pick = choices[idx]
+            if pick not in PERSONAS:
+                console.print(f"[red]Invalid: {pick}[/]")
+                return ""
+            state["persona"] = None if pick == "default" else pick
+            desc = PERSONAS.get(pick, "")
+            console.print(f"[green]Persona set to:[/] [bold]{pick}[/] — {desc}")
+            return ""
+        persona_name = args[0].lower()
+        if persona_name not in PERSONAS:
+            console.print(f"[red]Unknown persona: {persona_name}. Available: {', '.join(PERSONAS.keys())}[/]")
+            return ""
+        state["persona"] = None if persona_name == "default" else persona_name
+        console.print(f"[green]Persona set to:[/] [bold]{persona_name}[/] — {PERSONAS[persona_name]}")
+        return ""
+
     if cmd == "mode":
         if not args:
-            console.print(Panel(f"[bold]Current mode:[/] [green]{state['mode']}[/]\n\n[dim]Available:[/] {' | '.join(sorted(MODES.keys()))}", title="Mode", border_style="cyan"))
+            current = state.get("mode", "auto")
+            choices = sorted(MODES.keys()) + sorted(AGENTS.keys())
+            console.print(Panel(
+                f"[bold]Current mode:[/] [green]{current}[/]\n\n"
+                + "\n".join(f"  [cyan]{i}[/] {c}" for i, c in enumerate(choices)),
+                title="Mode Selector",
+                border_style="cyan"
+            ))
+            try:
+                pick = input("Enter number or name: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                return ""
+            if pick.isdigit():
+                idx = int(pick)
+                if 0 <= idx < len(choices):
+                    pick = choices[idx]
+            if pick not in choices:
+                console.print(f"[red]Invalid: {pick}[/]")
+                return ""
+            state["mode"] = pick
+            console.print(f"[green]Switched to mode:[/] [bold]{pick}[/] — {MODES.get(pick, AGENTS.get(pick, [''])[0])}")
             return ""
         mode_name = args[0].lower()
         if mode_name not in MODES and mode_name not in AGENTS:
@@ -321,8 +417,55 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
 
     if cmd == "model":
         if not args:
-            console.print(f"[bold]Current model:[/] [green]{state.get('model', 'auto')}[/]")
-            console.print(f"[dim]Available: auto, {' | '.join(WORKING_ALIASES)}[/]")
+            from orchestrator.providers import NVIDIA_ALIASES, OPENCODE_CLI_ALIASES
+            current = state.get("model", "auto")
+            groups = [
+                ("auto", ["auto"]),
+            ]
+            oc_free = sorted(a for a in WORKING_ALIASES if a.startswith("oc-") and ("free" in a or a in ("oc-big-pickle", "oc-hy3-free", "oc-mimo-free", "oc-north-mini-code")))
+            oc_nv = sorted(a for a in WORKING_ALIASES if a.startswith("oc-") and a not in oc_free)
+            nv = sorted(a for a in WORKING_ALIASES if a in NVIDIA_ALIASES and not a.startswith("oc-"))
+            ollama = sorted(a for a in WORKING_ALIASES if a not in NVIDIA_ALIASES and not a.startswith("oc-") and not a.startswith("or-"))
+            or_ = sorted(a for a in WORKING_ALIASES if a.startswith("or-"))
+            if oc_free:
+                groups.append(("OpenCode Zen Free", oc_free))
+            if oc_nv:
+                groups.append(("NVIDIA (via opencode)", oc_nv))
+            if nv:
+                groups.append(("NVIDIA", nv))
+            if or_:
+                groups.append(("OmniRoute", or_))
+            if ollama:
+                groups.append(("Ollama", ollama))
+            all_choices = []
+            item_idx = 0
+            for label, items in groups:
+                all_choices.append((None, f"\n[bold]{label}[/]"))
+                for item in items:
+                    all_choices.append((item, f"  [cyan]{item_idx}[/] {item}"))
+                    item_idx += 1
+            lines = []
+            for val, line in all_choices:
+                lines.append(line)
+            console.print(Panel(
+                f"[bold]Current model:[/] [green]{current}[/]\n" + "\n".join(lines),
+                title="Model Selector",
+                border_style="cyan"
+            ))
+            try:
+                pick = input("Enter number or name: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                return ""
+            if pick.isdigit():
+                idx = int(pick)
+                items = [v for v, _ in all_choices if v is not None]
+                if 0 <= idx < len(items):
+                    pick = items[idx]
+            if pick != "auto" and pick not in ALL_ALIASES:
+                console.print(f"[red]Invalid: {pick}[/]")
+                return ""
+            state["model"] = pick
+            console.print(f"[green]Model set to:[/] [bold]{pick}[/]")
             return ""
         model_name = args[0].lower()
         if model_name != "auto" and model_name not in ALL_ALIASES:
@@ -333,13 +476,18 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         return ""
 
     if cmd == "models":
-        from orchestrator.providers import NVIDIA_ALIASES
+        from orchestrator.providers import NVIDIA_ALIASES, OPENCODE_CLI_ALIASES
         table = Table(title="Available Models", box=box.ROUNDED)
         table.add_column("Alias", style="cyan")
         table.add_column("Resolved Model", style="white")
         table.add_column("Provider", style="green")
         for alias, resolved in sorted(ALL_ALIASES.items()):
-            provider = "nvidia" if alias in NVIDIA_ALIASES else "ollama"
+            if alias in OPENCODE_CLI_ALIASES:
+                provider = "opencode-cli"
+            elif alias in NVIDIA_ALIASES:
+                provider = "nvidia"
+            else:
+                provider = "ollama"
             style = "bold" if alias in WORKING_ALIASES else "dim"
             table.add_row(alias, resolved, provider, style=style)
         console.print(table)
@@ -400,18 +548,36 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
 
     if cmd == "scan":
         if not args:
-            console.print("[yellow]Usage: /scan <target> [--ports N-M] [--nuclei-severity <sev>][/]")
+            console.print("[yellow]Usage: /scan <target> [--ports N-M] [--nuclei-severity <sev>] [--no-proxy][/]")
             return ""
         target = args[0]
         ports = "1-1000"
         sev = None
+        use_proxy = True
         for i, a in enumerate(args[1:], 1):
             if a == "--ports" and i + 1 < len(args):
                 ports = args[i + 1]
             elif a == "--nuclei-severity" and i + 1 < len(args):
                 sev = args[i + 1]
-        result = await cmd_scan(target, ports=ports, sev=sev)
+            elif a == "--no-proxy":
+                use_proxy = False
+        result = await cmd_scan(target, ports=ports, sev=sev, proxy=use_proxy)
         pp(result, title=f"Scan: {target}")
+        return ""
+
+    if cmd == "autonomous":
+        if not args:
+            console.print("[yellow]Usage: /autonomous <target> [--no-proxy] [--phases recon,scan,...][/]")
+            return ""
+        target = args[0]
+        no_proxy = "--no-proxy" in args
+        phases = None
+        for i, a in enumerate(args[1:], 1):
+            if a == "--phases" and i + 1 < len(args):
+                phases = [p.strip() for p in args[i + 1].split(",")]
+        with console.status(f"[cyan]Running autonomous engagement on {target}..."):
+            result = await autonomous.handle(target, phases=phases, no_proxy=no_proxy)
+        pp(result, title=f"Autonomous: {target}")
         return ""
 
     if cmd == "exploit":
@@ -528,6 +694,8 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
                 phases = [p.strip() for p in args[i + 1].split(",")]
         result = await _start_engage(target, phases)
         pp(result, title=f"Engagement: {target}")
+        tid = grow.store_engagement_results(target, result)
+        console.print(f"[dim]Growth: stored {tid} → /grow {target} to review[/]")
         return ""
 
     if cmd == "findings":
@@ -601,6 +769,92 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
                 console.print(f"  {icon} {name}: {status}")
         return ""
 
+    if cmd == "proxy":
+        from orchestrator.proxy_guard import ProxyGuard
+        subcmd = args[0] if args else "status"
+
+        if subcmd == "status":
+            pg = ProxyGuard()
+            s = pg.status()
+            ext_ip = pg._get_exit_ip() or "unknown"
+            table = Table(title="Proxy Status", box=box.ROUNDED)
+            table.add_column("Key", style="cyan")
+            table.add_column("Value", style="white")
+            table.add_row("Active", str(s.get("active", False)))
+            table.add_row("Strategy", s.get("strategy", "none"))
+            table.add_row("Exit IP", ext_ip)
+            table.add_row("Circuit ID", (s.get("circuit_id") or "none")[:16])
+            table.add_row("Tor Running", str(s.get("tor_running", False)))
+            table.add_row("WireGuard", str(pg._check_wireguard(silent=True)))
+            table.add_row("ProtonVPN", str(pg._check_protonvpn(silent=True)))
+            table.add_row("VPN Passive", str(pg._check_vpn_passive(silent=True)))
+            console.print(table)
+
+        elif subcmd == "new-circuit":
+            with console.status("[cyan]Requesting new Tor circuit..."):
+                pg = ProxyGuard()
+                cid = pg.new_circuit()
+            console.print(f"[green]New circuit:[/] {cid}")
+            console.print(f"[green]Exit IP:[/] {pg.status().get('exit_ip', '?')}")
+
+        elif subcmd == "verify":
+            with console.status("[cyan]Verifying proxy chain..."):
+                pg = ProxyGuard()
+                try:
+                    pg.verify()
+                    console.print("[green]✓ Proxy verification passed[/]")
+                except Exception as e:
+                    console.print(f"[red]✗ Proxy verification failed: {e}[/]")
+
+        elif subcmd == "start":
+            console.print("[yellow]To start Tor: docker start raphael-20-tor-proxy-1[/]")
+            console.print("[yellow]To start WireGuard: sudo wg-quick up /etc/wireguard/wg0.conf[/]")
+            console.print("[yellow]To start ProtonVPN: protonvpn-cli connect[/]")
+
+        else:
+            console.print(f"[yellow]Usage: /proxy [status|verify|new-circuit|start][/]")
+        return ""
+
+    if cmd == "verify":
+        from orchestrator.brain.phases import PHASE_EXECUTORS
+        with console.status("[cyan]Verifying all Raphael systems..."):
+            report = await _verify_all()
+        overall = all(
+            v.get("pass", False) for v in report.values()
+            if isinstance(v, dict)
+        )
+        icon = "[green]✓ ALL SYSTEMS NOMINAL[/]" if overall else "[red]✗ SOME CHECKS FAILED[/]"
+        console.print(Panel(icon, title="Verify Result", border_style="green" if overall else "red"))
+
+        for category, data in report.items():
+            if not isinstance(data, dict):
+                continue
+            passed = data.get("pass", False)
+            cat_icon = "[green]✓[/]" if passed else "[red]✗[/]"
+            summary = ""
+            if category == "containers":
+                summary = f"({data.get('up',0)}/{data.get('total',0)} up)"
+            elif category == "services":
+                summary = f"({data.get('up',0)}/{data.get('total',0)} responsive)"
+            elif category == "kali_tools":
+                summary = f"({data.get('tools_count',0)} tools, health: {data.get('health','?')})"
+            elif category == "proxy":
+                summary = "(Tor port 9050)" if data.get("pass") else "(not reachable)"
+            elif category == "phases":
+                m = data.get("missing", [])
+                summary = f"({data.get('registered',0)}/{data.get('expected',0)} phases"
+                if m:
+                    summary += f", missing: {','.join(m)}"
+                summary += ")"
+            console.print(f"  {cat_icon} [bold]{category}[/] {summary}")
+
+            if not passed and "detail" in data:
+                for name, status in data["detail"].items():
+                    if isinstance(status, dict) and not status.get("ok", True):
+                        err = status.get("error", status.get("status", "unknown"))
+                        console.print(f"       [dim]{name}:[/] [red]{err}[/]")
+        return ""
+
     if cmd == "start":
         _start_services()
         return ""
@@ -630,12 +884,196 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         print_md(result, title=f"Strix: {target}")
         return ""
 
+    if cmd == "grow":
+        target = args[0] if args else None
+        stats = grow.stats()
+        table = Table(title="Growth Knowledge Base", box=box.ROUNDED)
+        table.add_column("Metric", style="cyan")
+        table.add_column("Count", style="white")
+        for k, v in stats.items():
+            table.add_row(k.replace("_", " ").title(), str(v))
+        console.print(table)
+        if target:
+            targets = grow.get_target_summary(target)
+            if targets:
+                t = targets[0]
+                console.print(Panel(f"[bold]Target:[/] {t['host']}  [dim]({t['id']})[/]\n"
+                                    f"[bold]Tags:[/] {t['tags'] or 'none'}\n"
+                                    f"[bold]Notes:[/] {t['notes'] or 'none'}",
+                                    title=f"Target: {target}", border_style="cyan"))
+                findings_table = Table(title=f"Findings for {target}", box=box.ROUNDED)
+                findings_table.add_column("Phase", style="cyan")
+                findings_table.add_column("Type", style="yellow")
+                findings_table.add_column("Severity", style="red")
+                findings_table.add_column("Description", style="white")
+                techs = grow.get_techniques(min_confidence=0.0)
+                for tech in techs[:10]:
+                    findings_table.add_row(tech["category"], tech["technique"],
+                                           f'{tech["confidence"]:.0%}', tech["description"][:50])
+                console.print(findings_table)
+        else:
+            recent = grow.get_target_summary()
+            if recent:
+                t2 = Table(title="Recent Targets", box=box.ROUNDED)
+                t2.add_column("ID", style="cyan")
+                t2.add_column("Host", style="white")
+                t2.add_column("Last Seen", style="green")
+                for r in recent:
+                    t2.add_row(r["id"], r["host"], time.strftime("%H:%M:%S", time.localtime(r["last_seen"])))
+                console.print(t2)
+        return ""
+
+    if cmd == "patterns":
+        ptype = args[0] if args else None
+        patterns = grow.get_patterns(pattern_type=ptype)
+        table = Table(title=f"{'Patterns' if not ptype else f'Patterns: {ptype}'}", box=box.ROUNDED)
+        table.add_column("Type", style="cyan")
+        table.add_column("Source", style="white")
+        table.add_column("Uses", style="green")
+        table.add_column("Effectiveness", style="yellow")
+        table.add_column("Data", style="white")
+        for p in patterns[:15]:
+            data_str = json.dumps(p["data"], default=str)[:60]
+            table.add_row(p["type"], p["source"] or "?", str(p["uses"]), f'{p["effectiveness"]:.0%}', data_str)
+        console.print(table)
+        return ""
+
+    if cmd == "techniques":
+        min_conf = float(args[0]) if args and args[0].replace(".", "").isdigit() else 0.0
+        techs = grow.get_techniques(min_confidence=min_conf)
+        table = Table(title=f"Techniques (confidence >= {min_conf:.0%})", box=box.ROUNDED)
+        table.add_column("Technique", style="cyan")
+        table.add_column("Category", style="yellow")
+        table.add_column("S/F", style="green")
+        table.add_column("Confidence", style="red")
+        table.add_column("Last Used", style="white")
+        for t in techs[:20]:
+            table.add_row(t["technique"], t["category"],
+                          f'{t["successes"]}/{t["failures"]}',
+                          f'{t["confidence"]:.0%}',
+                          time.strftime("%H:%M:%S", time.localtime(t["last_used"])) if t["last_used"] else "never")
+        console.print(table)
+        return ""
+
+    if cmd == "websearch" or cmd == "web":
+        if not args:
+            console.print("[yellow]Usage: /websearch <query>[/]")
+            return ""
+        query = " ".join(args)
+        from orchestrator.web_tools import web_search, format_search_results
+        with console.status(f"[cyan]Searching: {query}..."):
+            results = await web_search(query)
+        output = format_search_results(results)
+        print_md(output, title=f"Web Search: {query}")
+        return ""
+
+    if cmd == "fetch":
+        if not args:
+            console.print("[yellow]Usage: /fetch <url>[/]")
+            return ""
+        url = args[0]
+        from orchestrator.web_tools import fetch_url, format_fetch_result
+        with console.status(f"[cyan]Fetching: {url}..."):
+            result = await fetch_url(url)
+        output = format_fetch_result(result)
+        print_md(output, title=f"Fetch: {url}")
+        return ""
+
     console.print(f"[red]Unknown command: /{cmd}[/]")
     console.print("[dim]Type /help for available commands[/]")
     return ""
 
 
 RAPHAEL_DIR = Path(__file__).resolve().parent
+
+
+SERVICE_ENDPOINTS = {
+    "brain API":       "http://localhost:3700/v1/health",
+    "cai-service":     "http://localhost:3201/health",
+    "sword pipeline":  "http://localhost:3600/health",
+    "c2-server":       "http://localhost:3501/health",
+    "phishing":        "http://localhost:3502/health",
+    "recon-pipeline":  "http://localhost:3503/health",
+    "mhddos":          "http://localhost:3301/health",
+    "cloak-service":   "http://localhost:3401/health",
+    "neo4j":           "http://localhost:7474",
+    "caido":           "http://localhost:48080",
+    "freellmapi":      "http://localhost:3001/health",
+    "kali-tools":      "http://localhost:3800/health",
+}
+
+
+async def _verify_all() -> dict:
+    """Check every Raphael component and return pass/fail per group."""
+    import httpx
+    results = {}
+
+    # ── Docker containers ──
+    services = _service_status()
+    containers = {n: "Up" in s for n, s in services.items()}
+    results["containers"] = {
+        "pass": all(containers.values()) if containers else False,
+        "total": len(containers),
+        "up": sum(1 for v in containers.values() if v),
+        "detail": containers,
+    }
+
+    # ── HTTP service endpoints ──
+    svc_passes = 0
+    svc_total = 0
+    svc_detail = {}
+    async with httpx.AsyncClient(timeout=5) as cl:
+        for name, url in SERVICE_ENDPOINTS.items():
+            svc_total += 1
+            try:
+                r = await cl.get(url)
+                ok = r.status_code < 500
+                svc_detail[name] = {"ok": ok, "status": r.status_code}
+                if ok:
+                    svc_passes += 1
+            except Exception as e:
+                svc_detail[name] = {"ok": False, "error": str(e)[:60]}
+    results["services"] = {
+        "pass": svc_passes == svc_total,
+        "total": svc_total,
+        "up": svc_passes,
+        "detail": svc_detail,
+    }
+
+    # ── kali-tools inventory ──
+    try:
+        from orchestrator.kali_tools_client import kali
+        tools = await kali.tools_list()
+        health = await kali.health()
+        results["kali_tools"] = {
+            "pass": health.get("status") == "ok" and len(tools) > 0,
+            "tools_count": len(tools),
+            "health": health.get("status", "unknown"),
+        }
+    except Exception as e:
+        results["kali_tools"] = {"pass": False, "error": str(e)[:80]}
+
+    # ── Tor / proxy ──
+    results["proxy"] = {
+        "pass": _proxy_available(),
+        "tor_port_9050": _proxy_available(),
+    }
+
+    # ── Phase executors ──
+    try:
+        from orchestrator.brain.phases import PHASE_EXECUTORS
+        expected = {"recon", "scan", "exploit", "postex", "lateral", "credential", "exfil", "phish"}
+        registered = set(PHASE_EXECUTORS.keys())
+        results["phases"] = {
+            "pass": registered == expected,
+            "registered": len(registered),
+            "expected": len(expected),
+            "missing": sorted(expected - registered),
+        }
+    except Exception as e:
+        results["phases"] = {"pass": False, "error": str(e)[:80]}
+
+    return results
 
 
 def _proxy_available():
@@ -692,6 +1130,8 @@ def _start_services():
     result = _compose_cmd("up -d")
     if result["success"]:
         console.print("[green]✓ Services started[/]")
+    elif "already" in (result.get("stderr") or "").lower():
+        console.print("[yellow]○ Services already running[/]")
     else:
         console.print(f"[red]✗ Docker compose error: {result.get('stderr', result.get('error', 'unknown'))}[/]")
     statuses = _service_status()
@@ -882,23 +1322,29 @@ async def _resume_session(session_id: str) -> dict:
         return {"error": str(e)}
 
 
-async def main():
+def main() -> None:
+    """Synchronous entry point for CLI."""
+    asyncio.run(_main())
+
+
+async def _main() -> None:
+    """Original async main logic."""
     console.clear()
     console.print(r"""
 [bold cyan]
-   ██████  █████  ██████  ██   ██  █████  ███████ ██
-  ██      ██   ██ ██   ██ ██   ██ ██   ██ ██      ██
-  ██      ███████ ██████  ███████ ███████ █████   ██
-  ██      ██   ██ ██      ██   ██ ██   ██ ██
-   ██████ ██   ██ ██      ██   ██ ██   ██ ███████ ██
+    ██████  █████  ██████  ██   ██  █████  ███████ ██
+   ██      ██   ██ ██   ██ ██   ██ ██   ██ ██      ██
+   ██      ███████ ██████  ███████ ███████ █████   ██
+   ██      ██   ██ ██      ██   ██ ██   ██ ██
+    ██████ ██   ██ ██      ██   ██ ██   ██ ███████ ██
 [/]
 [dim]v2.0 — Autonomous AI Security Platform[/]
 [dim]Type /help for commands, /exit to quit[/]
 """)
 
-    _warn_weak_defaults()
+    # _warn_weak_defaults()  # disabled for uncensored mode
 
-    state = {"mode": "single", "model": "auto"}
+    state = {"mode": "single", "model": "auto", "persona": None}
 
     _start_services()
 
@@ -910,7 +1356,8 @@ async def main():
 
     while True:
         try:
-            prompt_text = f"raphael [{state['mode']}] > "
+            p_tag = f"/{state['persona']}" if state.get("persona") else ""
+            prompt_text = f"raphael [{state['mode']}{p_tag}] > "
             user_input = await session.prompt_async(prompt_text, style=PROMPT_STYLE)
         except (EOFError, KeyboardInterrupt):
             console.print()
@@ -933,7 +1380,7 @@ async def main():
         else:
             with console.status(f"[cyan]Thinking... [{state['mode']}/{state.get('model','auto')}]"):
                 try:
-                    result = await call_llm(state["mode"], user_input)
+                    result = await call_llm(state["mode"], user_input, state.get("model", "auto"), state)
                 except Exception as e:
                     result = f"[red]Error: {e}[/]"
                     if "--debug" in sys.argv:
@@ -942,4 +1389,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

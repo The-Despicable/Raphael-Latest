@@ -78,13 +78,13 @@ class SkillsBridge:
             self._raw_index = raw.get("skills", [])
         else:
             self._raw_index = [{"name": d.name, "path": str(d)} for d in SKILLS_DIR.iterdir() if d.is_dir()]
-        self._raw_index = [dict(s, subdomain=s.get("subdomain", s.get("domain", "unknown"))) for s in self._raw_index]
         if self._strix_enabled:
             self._load_strix_skills()
         for pipeline_name, subdomains in PIPELINE_MAP.items():
             self._by_subdomain[pipeline_name] = []
             for sd in subdomains:
-                matched = [s for s in self._raw_index if s.get("subdomain") == sd]
+                matched = [s for s in self._raw_index
+                           if s.get("subdomain") == sd]
                 self._by_subdomain[pipeline_name].extend(matched)
 
     def _load_strix_skills(self):
@@ -134,8 +134,7 @@ class SkillsBridge:
         return self._parsed[name]
 
     def _build_subdomain_index(self):
-        if self._by_subdomain:
-            return
+        self._by_subdomain = {}
         for entry in self._raw_index:
             name = entry.get("name") or Path(entry.get("path", "")).name
             meta = self._ensure_parsed(name)
@@ -153,14 +152,26 @@ class SkillsBridge:
     def subdomain_counts(self) -> dict[str, int]:
         return {sd: len(skills) for sd, skills in self.subdomain_index.items()}
 
+    def get_subdomains(self) -> dict[str, int]:
+        counts = {}
+        for entry in self._raw_index:
+            name = entry.get("name") or Path(entry.get("path", "")).name
+            meta = self._ensure_parsed(name)
+            sd = meta.get("subdomain", "unknown")
+            counts[sd] = counts.get(sd, 0) + 1
+        return counts
+
     def get_skills_for_subdomain(self, subdomain: str) -> list[dict]:
         return self.subdomain_index.get(subdomain, [])
 
     def get_skills_for_pipeline(self, pipeline: str) -> list[dict]:
         subdomains = PIPELINE_MAP.get(pipeline, [])
         results = []
-        for sd in subdomains:
-            results.extend(self.get_skills_for_subdomain(sd))
+        for entry in self._raw_index:
+            name = entry.get("name") or Path(entry.get("path", "")).name
+            meta = self._ensure_parsed(name)
+            if meta.get("subdomain") in subdomains:
+                results.append(meta)
         return results
 
     def get_skills_for_mitre(self, technique_id: str) -> list[dict]:

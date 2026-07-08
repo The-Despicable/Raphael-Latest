@@ -75,6 +75,16 @@ class C2Manager:
             self._sessions[session_id].socks_port = None
             self._sessions[session_id].proxy_url = None
 
+    async def deploy_implant_winrm(self, target: str, username: str, password: str) -> Optional[str]:
+        if hasattr(self._backend, "deploy_implant_winrm"):
+            return await self._backend.deploy_implant_winrm(target, username, password)
+        return None
+
+    async def deploy_implant_ssh(self, target: str, username: str, password_or_key: str) -> Optional[str]:
+        if hasattr(self._backend, "deploy_implant_ssh"):
+            return await self._backend.deploy_implant_ssh(target, username, password_or_key)
+        return None
+
     async def stop(self):
         await self._backend.stop()
 

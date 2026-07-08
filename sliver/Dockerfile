@@ -2,15 +2,14 @@ FROM alpine:3.19 AS builder
 
 RUN apk add --no-cache curl tar
 
-RUN curl -Lo /tmp/sliver-server.tar.gz \
-    https://github.com/BishopFox/sliver/releases/latest/download/sliver-server_linux.tar.gz \
-    && tar xzf /tmp/sliver-server.tar.gz -C /tmp/ \
-    && mv /tmp/sliver-server /usr/local/bin/sliver-server \
-    && rm /tmp/sliver-server.tar.gz
+RUN curl -Lo /tmp/sliver-server \
+    https://github.com/BishopFox/sliver/releases/download/v1.7.3/sliver-server_linux-amd64 \
+    && chmod +x /tmp/sliver-server \
+    && mv /tmp/sliver-server /usr/local/bin/sliver-server
 
 FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata git
 
 COPY --from=builder /usr/local/bin/sliver-server /usr/local/bin/sliver-server
 

@@ -1,4 +1,4 @@
-import smtplib, base64, time, random, json
+import smtplib, base64, time, random, json, hashlib
 
 class SMTPTunnel:
     def __init__(self, smtp_server: str, smtp_port: int = 25, username: str = None, password: str = None, use_tls: bool = False):
@@ -67,6 +67,3 @@ class SMTPTunnel:
             "mailbox": mailbox,
             "decode_instruction": "Fetch messages matching subject, extract X-Chunk header, sort by seq, base64-decode X-Chunk body",
         }
-
-
-import hashlib

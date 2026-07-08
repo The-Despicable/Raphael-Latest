@@ -34,7 +34,7 @@ async def run():
         print("  debate|community: python app.py <mode> \"<question>\"")
         print("  rsi:             python app.py rsi \"<research task>\" — W12+W13 advise, you execute")
         print("  postmortem:      python app.py postmortem \"<task>\" [--output <log>] — critic + RCA + corrected plan")
-        print("  scan:            python app.py scan <target> [--ports N-M] [--nuclei-severity <sev>] [--no-proxy]")
+        print("  scan:            python app.py scan <target> [--ports N-M] [--nuclei-severity <sev>]")
         print("  autonomous:      python app.py autonomous <target> [--phases p1,p2,...] [--rounds N] [--use-pso]")
         print("  engage:          python app.py engage <target> [--phases p1,p2,...]  (Brain→Sword unification)")
         print("  exploit:         python app.py exploit <target> [--url <url>] [--sql-level 3] [--sql-risk 2]")
@@ -45,7 +45,7 @@ async def run():
         print("  hexstrike:       python app.py hexstrike <target> [--tool nmap|nuclei|gobuster|sqlmap|full|agents] [--scan-type full|stealth]")
         print("  osint:           python app.py osint <target> [--modules dns,whois,subdomains,email]")
         print("  recon:           python app.py recon <target> [--mode host|deep]  (requires Shodan Premium)")
-        print("  mcp:             python app.py mcp [--port 9500] [--no-proxy]")
+        print("  mcp:             python app.py mcp [--port 9500]")
         print("  payloads:        python app.py payloads [--vector sqli] [--count 5]")
         sys.exit(1)
 
@@ -60,18 +60,17 @@ async def run():
         print(f"Available: {', '.join(MODES.keys())} exploit postex exfil phish anti-forensics hexstrike osint recon mcp payloads sast")
         sys.exit(1)
 
-    import logging
-    anon_logger = logging.getLogger("anonymity")
-    def _warn_no_proxy():
-        anon_logger.critical("ANONYMITY BYPASSED: --no-proxy or --no-anonymity flag used")
-        with open("anonymity_violation.log", "a") as f:
-            f.write(f"{__import__('datetime').datetime.utcnow().isoformat()} - ANONYMITY BYPASSED\n")
+    def _check_dev_mode():
+        dev = os.getenv("RAPHAEL_DEV_MODE", "").lower() in ("1", "true", "yes")
+        if dev:
+            print("[WARNING] RAPHAEL_DEV_MODE=1 — proxy enforcement disabled. Only for localhost testing.")
+        return dev
 
     if mode == "scan":
         scan_args = args[1:] if len(args) > 1 else []
         ports = "1-1000"
         sev = None
-        proxy = True
+        proxy = not _check_dev_mode()
         target = args[0] if args else None
         if not target:
             print("Error: target required")
@@ -81,9 +80,6 @@ async def run():
                 ports = scan_args[i + 1]
             elif a == "--nuclei-severity" and i + 1 < len(scan_args):
                 sev = scan_args[i + 1]
-            elif a == "--no-proxy":
-                proxy = False
-                _warn_no_proxy()
         result = await handler(target, ports=ports, nuclei_severity=sev, use_proxy=proxy)
     elif mode == "exploit":
         target = args[0] if args else None
@@ -93,7 +89,7 @@ async def run():
         url = None
         sql_level = 3
         sql_risk = 2
-        proxy = True
+        proxy = not _check_dev_mode()
         i = 1
         while i < len(args):
             a = args[i]
@@ -106,8 +102,6 @@ async def run():
             elif a == "--sql-risk" and i + 1 < len(args):
                 sql_risk = int(args[i + 1])
                 i += 1
-            elif a == "--no-proxy":
-                proxy = False
             i += 1
         pg = ProxyGuard() if proxy else None
         if pg:
@@ -115,10 +109,8 @@ async def run():
                 pg.verify()
             except Exception as e:
                 print(f"Proxy verification failed: {e}")
-                print("Run with --no-proxy to skip")
+                print("Set RAPHAEL_DEV_MODE=1 to skip proxy checks")
                 sys.exit(1)
-        if not pg:
-            _warn_no_proxy()
         pipeline = ExploitPipeline(pg)
         result = await pipeline.run(target, url=url, sql_level=sql_level, sql_risk=sql_risk)
         if pg:
@@ -306,12 +298,10 @@ async def run():
             sandbox.stop()
     elif mode == "mcp":
         port = 9500
-        proxy = True
+        proxy = not _check_dev_mode()
         for i, a in enumerate(args):
             if a == "--port" and i + 1 < len(args):
                 port = int(args[i + 1])
-            elif a == "--no-proxy":
-                proxy = False
         pg = ProxyGuard() if proxy else None
         bridge = MCPBridge(pg=pg, port=port)
         bridge.start()

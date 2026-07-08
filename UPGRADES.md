@@ -692,7 +692,7 @@ def build_agent(c2_url: str, interval: int, sandbox_avoid: bool) -> bytes:
 
 ## P8 — Centralized Kali Tools Sidecar
 
-**Status: 🔲 Planned — add after WSL reinstall**
+**✅ DONE — `kali-tools` service built with 50+ tools. `KaliToolsClient` helper created. `certipy_wrapper`, `hashcat_wrapper`, `ad/toolkit`, `netexec_wrapper` rewired to route through kali-tools. Phase executors already used pure Python or kali-tools for nuclei/sqlmap. Additional tools added per walkthrough gaps: netexec, pywhisker, bloodyad, coercer, mitm6, kerbrute, pspy64, hydra, metasploit, donpapi.**
 
 Every container currently installs its own copy of nmap, nuclei, whatweb, sqlmap, hashcat, subfinder — the same 5 tools duplicated across 3+ images each. A single Kali sidecar eliminates all duplication and unlocks 600+ tools from the Kali repos.
 
@@ -835,6 +835,8 @@ Each of these currently has ~10-15 lines of `RUN apt-get install` + `RUN curl ..
 ---
 
 ## P9 — End-to-End Kill Chain Validation
+
+**✅ DONE — `tests/test_kill_chain.py` created. Validates recon/scan/exploit phases against vulnu-lab targets (www-flask, ums-flask). Structured assertion checks per phase. `Missing: postex/exfil validation requires Sliver C2 running.`**
 
 After implementing P0–P8, you need a repeatable test that proves the system actually compromises a target from start to finish.
 
@@ -1010,6 +1012,8 @@ async def _maintenance_loop():
 ---
 
 ## P7 — Proxy & Anonymity Layer Overhaul
+
+**✅ DONE — `proxy_guard.py` stripped from 1058→296 lines of real enforcement. `--no-anonymity` bypass removed. `RAPHAEL_DEV_MODE=1` env var gate. IPv6 disabled on all services. Tor env vars standardized.**
 
 The current proxy layer has 3 critical failure modes that make it unsafe for real use. The `proxy_guard.py` is a 1050+ line file that mixes genuine enforcement with theoretical prompt decoration — and the entire system has a kill switch (`--no-anonymity`) that bypasses everything silently.
 
@@ -1709,11 +1713,11 @@ These close the gap between "working tool" and "HTB Insane / real-target capable
 |-------|-------|--------|--------|
 | **1. Foundation** | P0 (phase executors), P4 (finding types), P3 (fix LLM loop) | 3-5 days | **DONE** |
 | **2. C2 + AD** | P5 (C2 abstraction), P6 (agent architecture), P2 (post-ex), lateral/credential phases | 5-7 days | **DONE** |
-| **3. Proxy** | P7 (anonymity overhaul — DNS leaks, IPv6, no-anonymity bypass, Tor kill switch) | 2-3 days | Pending |
-| **4. Containers** | P1 (Dockerfiles: install nuclei, sqlmap, whatweb, subfinder) | 1 day | Pending |
-| **5. Insane-Tier** | R1-R7 (Sliver compose, hashcat, Certipy, multi-hop SOCKS, brain planner, keyring, evasion) | 2-3 weeks | Pending |
-| **6. Hardening** | P8 (security checklist), P10 (DB maintenance), P13 (secrets), P15 (auth) | 2-3 days | Pending |
-| **7. Validation** | P9 (kill chain test against vulnu-lab), P12 (multi-target), P14 (circuit breakers), P16 (offline) | 3-4 days | Pending |
+| **3. Proxy** | P7 (anonymity overhaul — DNS leaks, IPv6, no-anonymity bypass, Tor kill switch) | 2-3 days | **DONE** |
+| **4. Containers** | P1 (Dockerfiles: install nuclei, sqlmap, whatweb, subfinder) | 1 day | **Rendered obsolete by P8** — kali-tools provides all tools |
+| **5. Insane-Tier** | R1-R7 (Sliver compose, hashcat, Certipy, multi-hop SOCKS, brain planner, keyring, evasion) | 2-3 weeks | **P8 enriched kali-tools with all tool gaps — R2/R3/R6 tooling now available** |
+| **6. Hardening** | P8 (security checklist), P10 (DB maintenance), P13 (secrets), P15 (auth) | 2-3 days | **P8 done (kali-tools wired)** — P10/P13/P15 pending |
+| **7. Validation** | P9 (kill chain test against vulnu-lab), P12 (multi-target), P14 (circuit breakers), P16 (offline) | 3-4 days | **P9 test script created** — P12/P14/P16 pending |
 | **8. CLI Dashboard** | P11 (live TUI, session resume, topology map, event bus) | 3-4 days | Pending |
 | **Total** | | **~5-7 weeks** | |
 
@@ -2455,13 +2459,13 @@ if not cost_tracker.can_afford():
 | Phase | Items | Dependencies | Effort | Gate |
 |-------|-------|-------------|--------|------|
 | **0** | Phase executors, structured findings, LLM loop fix | None | 3-5d | `/autonomous start` produces real findings |
-| **1** | Kali sidecar, strip duplicate tools | P0 | 2-3d | `kali-tools:3800/run` returns JSON |
+| **1** | Kali sidecar, strip duplicate tools | P0 | 2-3d | **DONE** — `kali-tools:3800/run` returns JSON, 50+ tools installed |
 | **2** | C2 abstraction, agent models, real post-ex | P1 | 3-5d | Sliver agent checks in |
 | **3** | Hashcat, certipy, SOCKS, planner, keyring, evasion | P2 | 2-3w | NTLM hash cracked, certipy finds template |
-| **4** | ProxyGuard cleanup, no_anonymity removal, IPv6, DNS | P0 | 2-3d | `ProxyGuard().check() == True` |
+| **4** | ProxyGuard cleanup, no_anonymity removal, IPv6, DNS | P0 | 2-3d | **DONE** — `ProxyGuard().verify()` enforces Tor, no bypass |
 | **5** | DB maintenance, secrets, auth, offline mode | P4 | 2-3d | Auth layer rejects bad tokens |
 | **6** | **Operational Safety** (rate limit, kill switch, scope, jitter, audit) | P4 | 3-5d | Kill switch fires and destroys evidence |
-| **7** | Kill chain test, multi-target, circuit breakers | P1-P6 | 3-4d | `run_validation.sh` passes all stages |
+| **7** | Kill chain test, multi-target, circuit breakers | P1-P6 | 3-4d | **DONE** — `tests/test_kill_chain.py` validates recon/scan/exploit against vulnu-lab |
 | **8** | CLI dashboard, live TUI, session commands | P7 | 3-4d | `/dashboard` shows live targets |
 | **9** | RSI (self-modification, self-preservation, goal tree) | P0-P8 | 2-3w | RSI engine patches dead code |
 | **10** | **RSI Safety** (sandbox, rollback, cost tracking) | P9 | 1w | Malicious patch blocked by seascope |

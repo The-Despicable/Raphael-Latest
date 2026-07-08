@@ -1,38 +1,43 @@
-import json, shutil, subprocess, tempfile
+import json, shutil
 from typing import Optional
 from ..proxy_guard import ProxyGuard
+
+KALI_TOOLS_URL = "http://kali-tools:3800"
 
 class NucleiScanner:
     def __init__(self, pg: ProxyGuard = None):
         self.pg = pg
-        self._binary = shutil.which("nuclei")
 
     @property
     def available(self) -> bool:
-        return self._binary is not None
+        return True
 
     def scan(self, target: str, templates: list = None,
              severity: str = None, rate_limit: int = 50) -> dict:
-        if not self.available:
-            return {"error": "nuclei not installed", "target": target}
-
-        cmd = [self._binary, "-u", target,
-               "-json", "-silent",
-               "-rate-limit", str(rate_limit)]
+        args = f"-u {target} -json -silent -rate-limit {rate_limit}"
 
         if templates:
             for t in templates:
-                cmd.extend(["-t", t])
+                args += f" -t {t}"
         if severity:
-            cmd.extend(["-severity", severity])
+            args += f" -severity {severity}"
 
         if self.pg:
             self.pg._enforce_timing()
 
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            import httpx
+            resp = httpx.post(
+                f"{KALI_TOOLS_URL}/run",
+                params={"tool": "nuclei", "args": args, "timeout": 600},
+                timeout=610
+            )
+            result = resp.json()
+            if result.get("returncode") != 0:
+                return {"error": result.get("stderr", "nuclei failed"), "target": target}
+
             findings = []
-            for line in r.stdout.strip().split("\n"):
+            for line in result["stdout"].strip().split("\n"):
                 if line:
                     try:
                         findings.append(json.loads(line))
@@ -43,7 +48,5 @@ class NucleiScanner:
                 "findings": findings,
                 "findings_count": len(findings),
             }
-        except subprocess.TimeoutExpired:
-            return {"error": "nuclei scan timed out", "target": target}
         except Exception as e:
             return {"error": str(e), "target": target}

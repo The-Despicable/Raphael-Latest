@@ -21,7 +21,7 @@ services:
       - RAPHAEL_PATH=/raphael
     volumes:
       - ./orchestrator:/raphael/orchestrator
-      - /usr/bin/nmap:/usr/bin/nmap:ro
+
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
@@ -92,10 +92,11 @@ services:
       - SLIVER_OPERATOR_CONFIG=/sliver-config/operator.cfg
     volumes:
       - ./orchestrator:/raphael/orchestrator
-      - sliver-config:/sliver-config:ro
+      - sliver-config:/sliver-config:rw
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
+      - neo4j
       - sliver-server
     networks:
       - raphael-net
@@ -195,7 +196,7 @@ services:
       - SLIVER_OPERATOR_CONFIG=/sliver-config/operator.cfg
     volumes:
       - brain-data:/data
-      - sliver-config:/sliver-config:ro
+      - sliver-config:/sliver-config:rw
     cap_add:
       - NET_ADMIN
     depends_on:
@@ -213,6 +214,8 @@ services:
       - "9052:9051"
     environment:
       - PASSWORD=${TOR_CONTROL_PASS:-changeme}
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     networks:
       raphael-net:
         aliases:
@@ -261,6 +264,29 @@ services:
       resources:
         limits:
           memory: 512M
+
+  kali-tools:
+    build:
+      context: ./kali-tools
+      dockerfile: Dockerfile
+    image: raphael/kali-tools:latest
+    container_name: kali-tools
+    hostname: kali-tools
+    networks: [raphael-net]
+    ports:
+      - "3800:3800"
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+      - SYS_PTRACE
+    volumes:
+      - ./orchestrator:/raphael/orchestrator:ro
+      - ./data:/raphael/data
+    environment:
+      - TOOLS_PORT=3800
+      - TZ=UTC
+    logging: *default-logging
+    restart: unless-stopped
 
   caido:
     image: caido/caido:latest

@@ -11,7 +11,7 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from playwright.async_api import async_playwright
+from cloakbrowser import launch_async
 from pydantic import BaseModel, Field
 from stem import Signal
 from stem.control import Controller
@@ -48,7 +48,6 @@ logging.basicConfig(
 logger = logging.getLogger("cloak-service")
 
 browser = None
-playwright = None
 
 
 class BrowseRequest(BaseModel):
@@ -190,29 +189,21 @@ async def get_browser_page(viewport=None):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global playwright, browser
+    global browser
     logger.info("Starting cloak-service...")
     try:
-        playwright = await async_playwright().start()
-        browser = await playwright.chromium.launch(
+        browser = await launch_async(
             headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-            ],
+            args=["--no-sandbox"],
         )
-        logger.info("Browser launched successfully")
+        logger.info("CloakBrowser launched successfully")
     except Exception as e:
-        logger.error("Failed to launch browser: %s", e)
+        logger.error("Failed to launch CloakBrowser: %s", e)
         browser = None
     yield
     logger.info("Shutting down cloak-service...")
     if browser:
         await browser.close()
-    if playwright:
-        await playwright.stop()
 
 
 app = FastAPI(title="Cloak Service", version="1.0.0", lifespan=lifespan)

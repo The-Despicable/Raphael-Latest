@@ -62,6 +62,7 @@ def record_event(
     latency: float = 0.0,
     operator: str = "raphael",
     metadata: dict = None,
+    error: str = None,
 ) -> dict:
     prev_hash = _load_last_hash()
     event = {
@@ -79,6 +80,8 @@ def record_event(
     }
     if metadata:
         event["metadata"] = metadata
+    if error:
+        event["error"] = error
 
     raw = json.dumps(event, sort_keys=True)
     event_hash = hashlib.sha256(raw.encode()).hexdigest()

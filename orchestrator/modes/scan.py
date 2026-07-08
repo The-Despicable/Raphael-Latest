@@ -1,4 +1,4 @@
-import json, sys
+import json, os, sys
 from ..scanners.pipeline import ScanPipeline
 from ..proxy_guard import ProxyGuard, ProxyError
 
@@ -30,13 +30,16 @@ if __name__ == "__main__":
     import asyncio
 
     if len(sys.argv) < 2:
-        print("Usage: python -m orchestrator.modes.scan <target> [--ports N-M] [--nuclei-severity critical|high|medium|low] [--no-proxy]")
+        print("Usage: python -m orchestrator.modes.scan <target> [--ports N-M] [--nuclei-severity critical|high|medium|low]")
         sys.exit(1)
 
     target = sys.argv[1]
     ports = "1-1000"
     sev = None
-    proxy = True
+    dev = os.getenv("RAPHAEL_DEV_MODE", "").lower() in ("1", "true", "yes")
+    proxy = not dev
+    if dev:
+        print("[scan] WARNING: RAPHAEL_DEV_MODE=1 — scanning without proxy")
 
     args = sys.argv[2:]
     for i, a in enumerate(args):
@@ -44,8 +47,6 @@ if __name__ == "__main__":
             ports = args[i + 1]
         elif a == "--nuclei-severity" and i + 1 < len(args):
             sev = args[i + 1]
-        elif a == "--no-proxy":
-            proxy = False
 
     result = asyncio.run(handle(target, ports=ports, nuclei_severity=sev, use_proxy=proxy))
     print(json.dumps(result, indent=2))

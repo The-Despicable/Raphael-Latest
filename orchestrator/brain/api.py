@@ -210,14 +210,20 @@ async def get_chain(chain_hash: str):
 
 @app.get("/v1/health")
 async def health():
-    state = brain.get_state()
     from orchestrator.providers import BREAKERS, is_online
     online = await is_online()
+    try:
+        state = brain.get_state()
+        models_tracked = len(state.get("models", []))
+        chain_steps = state.get("total_chain_steps", 0)
+    except Exception:
+        models_tracked = 0
+        chain_steps = 0
     return {
         "status": "ok",
         "online": online,
-        "models_tracked": len(state.get("models", [])),
-        "chain_steps": state.get("total_chain_steps", 0),
+        "models_tracked": models_tracked,
+        "chain_steps": chain_steps,
         "circuit_breakers": {name: cb.to_dict() for name, cb in BREAKERS.items()},
     }
 

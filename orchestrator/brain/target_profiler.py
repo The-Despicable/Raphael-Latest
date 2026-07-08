@@ -7,33 +7,35 @@ DNS_RECON = os.getenv("DNS_RECON_PATH", "dnsrecon")
 
 
 def _run(cmd: list, timeout: int = 120) -> tuple:
+    if not cmd or not cmd[0]:
+        return -1, "", "empty command"
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         return proc.returncode, proc.stdout, proc.stderr
     except subprocess.TimeoutExpired:
         return -1, "", "timeout"
-    except FileNotFoundError:
-        return -1, "", f"{cmd[0]} not found"
+    except (FileNotFoundError, PermissionError, OSError):
+        return -1, "", f"{cmd[0]} not found or not executable"
 
 
 def passive_recon(target: str) -> dict:
     profile = {"target": target, "timestamp": time.time(), "subdomains": [], "dns": {}, "tech_stack": [], "ports": []}
 
-    rc, out, err = _run([SUBFINDER, "-d", target, "-silent"], timeout=60)
+    rc, out, err = _run([SUBFINDER, "-d", target, "-silent"], timeout=15)
     if rc == 0 and out.strip():
         profile["subdomains"] = [s.strip() for s in out.strip().split("\n") if s.strip()]
 
-    rc, out, err = _run(["dig", "+short", target, "ANY"], timeout=15)
+    rc, out, err = _run(["dig", "+short", target, "ANY"], timeout=10)
     if rc == 0 and out.strip():
         profile["dns"]["records"] = [r.strip() for r in out.strip().split("\n") if r.strip()]
 
-    rc, out, err = _run([WHATWEB, target, "--color=never"], timeout=30)
+    rc, out, err = _run([WHATWEB, target, "--color=never"], timeout=15)
     if rc == 0 and out.strip():
         profile["tech_stack"] = [t.strip() for t in out.strip().split(",") if t.strip()]
 
     rc, out, err = _run(
         [NMAP, "-sV", "-T4", "--top-ports", "100", "-Pn", target, "-oX", "-"],
-        timeout=180,
+        timeout=120,
     )
     if rc == 0 and out.strip():
         ports = []

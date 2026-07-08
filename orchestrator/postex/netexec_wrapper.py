@@ -1,69 +1,40 @@
-import subprocess, shutil, os, json
 from typing import Optional
+from orchestrator.kali_tools_client import kali
+
 
 class NetExecWrapper:
     def __init__(self):
-        self._binary = shutil.which("netexec") or shutil.which("nxc")
-        self._source = "/tmp/NetExec"
+        self._available = True
 
     @property
     def available(self) -> bool:
-        return self._binary is not None or os.path.exists(self._source + "/nxc/netexec.py")
+        return self._available
 
-    def smb_pth(self, target: str, username: str, hash: str,
-                module: str = "shares") -> dict:
-        cmd = self._build_cmd("smb", target, username=username, hash=hash, module=module)
-        return self._run(cmd)
+    async def smb_pth(self, target: str, username: str, hash: str,
+                      module: str = "shares") -> dict:
+        args = f"smb {target} -u {username} -H {hash} -M {module}"
+        return await self._run(args)
 
-    def smb_enum(self, target: str, username: str = None,
-                 password: str = None, hash: str = None) -> dict:
-        cmd = self._build_cmd("smb", target, username=username,
-                              password=password, hash=hash, module="shares")
-        return self._run(cmd)
+    async def smb_enum(self, target: str, username: str = None,
+                       password: str = None, hash: str = None) -> dict:
+        args = f"smb {target} -M shares"
+        if username:
+            args += f" -u {username}"
+        if password:
+            args += f" -p {password}"
+        if hash:
+            args += f" -H {hash}"
+        return await self._run(args)
 
-    def ldap_kerberoast(self, target: str, username: str, password: str) -> dict:
-        cmd = self._build_cmd("ldap", target, username=username,
-                              password=password, module="kerberoast")
-        return self._run(cmd)
+    async def ldap_kerberoast(self, target: str, username: str, password: str) -> dict:
+        args = f"ldap {target} -u {username} -p {password} -M kerberoast"
+        return await self._run(args)
 
-    def _build_cmd(self, protocol: str, target: str, **kwargs) -> list:
-        cmd = ["python3", os.path.join(self._source, "nxc", "netexec.py")]
-        cmd.extend([protocol, target])
-        if kwargs.get("username"):
-            cmd.extend(["-u", kwargs["username"]])
-        if kwargs.get("password"):
-            cmd.extend(["-p", kwargs["password"]])
-        if kwargs.get("hash"):
-            cmd.extend(["-H", kwargs["hash"]])
-        if kwargs.get("module"):
-            cmd.extend(["-M", kwargs["module"]])
-        return cmd
-
-    def _run(self, cmd: list) -> dict:
-        env = os.environ.copy()
-        env["PYTHONPATH"] = f"{self._source}:{env.get('PYTHONPATH', '')}"
-        try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env)
-            return {
-                "command": " ".join(cmd[:6]) + "...",
-                "output": (r.stdout + r.stderr)[:2000],
-                "success": r.returncode == 0,
-            }
-        except subprocess.TimeoutExpired:
-            return {"error": "NetExec timed out"}
-        except Exception as e:
-            return self._simulate(cmd)
-
-    def _simulate(self, cmd: list) -> dict:
-        import re
-        target = "unknown"
-        for c in cmd:
-            if re.match(r'^\d+\.\d+\.\d+\.\d+$', c):
-                target = c
-                break
+    async def _run(self, args: str) -> dict:
+        result = await kali.run("netexec", args, timeout=120)
         return {
-            "target": target,
-            "protocol": cmd[3] if len(cmd) > 3 else "unknown",
-            "note": f"SIMULATED: {' '.join(cmd[:5])}...",
-            "output": "[SIMULATED] NetExec would execute lateral movement against target",
+            "command": f"netexec {args[:80]}...",
+            "output": (result.get("stdout", "") + result.get("stderr", ""))[:2000],
+            "success": result.get("returncode") == 0,
+            "error": result.get("error"),
         }

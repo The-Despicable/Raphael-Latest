@@ -30,6 +30,16 @@ $SUDO iptables -A OUTPUT -d 127.0.2.1 -p tcp --dport 53 -j ACCEPT
 # Tor SOCKS + Control (host)
 $SUDO iptables -A OUTPUT -d 127.0.0.1 -p tcp --dport 9050 -j ACCEPT
 $SUDO iptables -A OUTPUT -d 127.0.0.1 -p tcp --dport 9051 -j ACCEPT
+# Host Tor (privacy config, ExcludeNodes)
+$SUDO iptables -A OUTPUT -d 127.0.0.1 -p tcp --dport 9060 -j ACCEPT
+$SUDO iptables -A OUTPUT -d 127.0.0.1 -p tcp --dport 9061 -j ACCEPT
+# dnscrypt-proxy
+$SUDO iptables -A OUTPUT -d 127.0.2.1 -p udp --dport 53 -j ACCEPT
+$SUDO iptables -A OUTPUT -d 127.0.2.1 -p tcp --dport 53 -j ACCEPT
+# FreeLLMAPI
+$SUDO iptables -A OUTPUT -d 127.0.0.1 -p tcp --dport 3001 -j ACCEPT
+# Ollama
+$SUDO iptables -A OUTPUT -d 127.0.0.1 -p tcp --dport 11434 -j ACCEPT
 
 # Docker bridge networks (host ↔ containers, container ↔ container)
 for net in 172.17.0.0/16 172.18.0.0/16 172.19.0.0/16 172.20.0.0/16; do

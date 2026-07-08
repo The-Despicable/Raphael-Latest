@@ -2,6 +2,9 @@ import time
 
 from orchestrator.brain.phases.models import Finding, PhaseResult, Severity
 from orchestrator.scanners.nuclei_scanner import NucleiScanner
+from orchestrator.scanners.gobuster_wrapper import GobusterWrapper
+from orchestrator.scanners.enum4linux_wrapper import SmbmapWrapper
+from orchestrator.scanners.web_wrappers import NiktoWrapper, WfuzzWrapper
 from orchestrator.brain.phases.recon import run_recon
 
 
@@ -15,9 +18,13 @@ async def run_scan(target: str, findings: list[Finding] = None,
         findings = recon.findings
 
     nuclei = nuclei_scanner or NucleiScanner()
-    http_findings = [f for f in (findings or []) if f.service in ("http", "https", "http-proxy", "http-alt", "https-alt")]
+    gobuster = GobusterWrapper()
+    smbmap = SmbmapWrapper()
+    nikto = NiktoWrapper()
+    wfuzz = WfuzzWrapper()
     scan_findings = list(findings or [])
     nuclei_output = ""
+    extra_output = []
 
     if nuclei.available:
         try:
@@ -41,7 +48,6 @@ async def run_scan(target: str, findings: list[Finding] = None,
                             if "cve" in ref.lower():
                                 cve_id = ref.split("/")[-1]
                                 break
-
                     matched = nf.get("matched-at", "")
                     port = None
                     if ":" in matched:
@@ -49,7 +55,6 @@ async def run_scan(target: str, findings: list[Finding] = None,
                             port = int(matched.split(":")[-1].split("/")[0])
                         except ValueError:
                             pass
-
                     scan_findings.append(Finding(
                         phase="scan", type="vulnerability", target=target,
                         host=target, port=port, severity=sev, cve=cve_id,
@@ -62,15 +67,87 @@ async def run_scan(target: str, findings: list[Finding] = None,
         except Exception as e:
             nuclei_output = f"nuclei error: {e}"
     else:
-        nuclei_output = "nuclei binary not available"
+        nuclei_output = "nuclei not available"
+
+    # Gobuster web directory busting on HTTP/HTTPS ports
+    http_hosts = set()
+    for f in scan_findings:
+        if f.type == "open_port" and f.port in (80, 443, 8080, 8443, 8000, 8888):
+            http_hosts.add((f.host or target, f.port))
+    for host, port in http_hosts:
+        proto = "https" if port in (443, 8443) else "http"
+        url = f"{proto}://{host}:{port}"
+
+        try:
+            dir_result = await gobuster.dirs(url, timeout=120)
+            for path in dir_result.get("paths", []):
+                scan_findings.append(Finding(
+                    phase="scan", type="discovered_path", target=target,
+                    host=host, port=port, severity=Severity.MEDIUM,
+                    description=f"Discovered: {url}/{path}",
+                ))
+            if dir_result.get("count", 0) > 0:
+                extra_output.append(f"gobuster: {dir_result['count']} paths on {port}")
+        except Exception:
+            pass
+
+        try:
+            nikto_result = await nikto.scan(url, timeout=180)
+            for vuln in nikto_result.get("vulnerabilities", []):
+                scan_findings.append(Finding(
+                    phase="scan", type="nikto_finding", target=target,
+                    host=host, port=port, severity=Severity.MEDIUM,
+                    description=f"Nikto: {vuln[:200]}",
+                ))
+            if nikto_result.get("count", 0) > 0:
+                extra_output.append(f"nikto: {nikto_result['count']} issues on {port}")
+        except Exception:
+            pass
+
+        try:
+            wfuzz_result = await wfuzz.fuzz(f"{url}/FUZZ", timeout=120)
+            for finding in wfuzz_result.get("findings", []):
+                scan_findings.append(Finding(
+                    phase="scan", type="wfuzz_finding", target=target,
+                    host=host, port=port, severity=Severity.MEDIUM,
+                    description=f"Wfuzz: {finding[0]} ({finding[1]})",
+                ))
+            if wfuzz_result.get("count", 0) > 0:
+                extra_output.append(f"wfuzz: {wfuzz_result['count']} hits on {port}")
+        except Exception:
+            pass
+
+    # SMB share scanning
+    for f in scan_findings:
+        if f.port == 445 or f.type == "smb_share":
+            smb_host = f.host or target
+            try:
+                smb_result = await smbmap.scan(smb_host, timeout=60)
+                writable = smb_result.get("writable", [])
+                for share in writable:
+                    scan_findings.append(Finding(
+                        phase="scan", type="smb_writable", target=target,
+                        host=smb_host, severity=Severity.HIGH,
+                        description=f"Writable SMB share: {share}",
+                        evidence=share,
+                    ))
+                if writable:
+                    extra_output.append(f"smb: {len(writable)} writable shares on {smb_host}")
+            except Exception:
+                pass
+            break
 
     latency = time.time() - t0
     new_findings = [f for f in scan_findings if f.phase == "scan"]
+    extra = " | ".join(extra_output)
+    summary_parts = [f"scan: {len(new_findings)} findings"]
+    if extra:
+        summary_parts.append(extra)
     return PhaseResult(
         phase="scan",
         success=len(new_findings) > 0,
         findings=scan_findings,
-        summary=f"Scan complete: {len(new_findings)} vulnerabilities found",
-        raw_output=nuclei_output,
+        summary=" | ".join(summary_parts),
+        raw_output=f"{nuclei_output} | {extra}" if extra else nuclei_output,
         latency=latency,
     )

