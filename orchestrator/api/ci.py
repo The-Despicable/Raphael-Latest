@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from orchestrator.auth import require_scope
+from orchestrator.audit_trail import record_event
 from orchestrator.engagement_queue import Engagement, get_queue
 from orchestrator.modes.autonomous import handle as autonomous_handle
 from orchestrator.scope import default_scope
@@ -69,6 +70,10 @@ async def start_engage(
 
     queue = get_queue()
     eng_id = queue.enqueue(req.target, phases, persona=persona, webhook_url=req.webhook_url or "")
+
+    record_event(action="engage_start", target=req.target, phase="ci_api", verdict="queued", details={
+        "eng_id": eng_id, "persona": persona, "phases": phases, "webhook": bool(req.webhook_url),
+    })
 
     return EngageResponse(
         id=eng_id,
@@ -157,6 +162,10 @@ async def quick_scan(
         no_proxy=req.no_proxy,
         persona=persona,
     )
+
+    record_event(action="quick_scan", target=req.target, phase="ci_api",
+                 verdict="completed", findings=result.get("total_findings", 0),
+                 details={"persona": persona, "no_proxy": req.no_proxy})
     return result
 
 

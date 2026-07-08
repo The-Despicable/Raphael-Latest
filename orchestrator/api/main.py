@@ -1,15 +1,18 @@
 """Raphael CI/CD API — FastAPI application entrypoint."""
 
-import asyncio, logging, os
+import asyncio, logging, os, time
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from orchestrator.api.ci import router as ci_router
 from orchestrator.engagement_queue import get_queue
 from orchestrator.modes.autonomous import handle as autonomous_handle
 from orchestrator.webhook import deliver as deliver_webhook
+from orchestrator.hardening.rate_limiter import get_limiter
+from orchestrator.audit_trail import record_event
 
 logging.basicConfig(
     level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper()),
@@ -25,6 +28,37 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        client_ip = request.client.host if request.client else "unknown"
+        limiter = get_limiter()
+        await limiter.wait(key=f"api:{client_ip}")
+        response = await call_next(request)
+        return response
+
+
+class AuditLogMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        t0 = time.time()
+        response = await call_next(request)
+        latency = time.time() - t0
+
+        if request.url.path.startswith("/v1/ci/"):
+            record_event(
+                action=f"{request.method} {request.url.path}",
+                target=request.url.path,
+                phase="ci_api",
+                verdict="success" if response.status_code < 400 else "error",
+                latency=latency,
+                details={"status_code": response.status_code, "client_ip": request.client.host if request.client else "unknown"},
+            )
+        return response
+
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(AuditLogMiddleware)
 
 app.include_router(ci_router)
 
