@@ -641,3 +641,12 @@ async def call_parallel(messages: list, max_tokens=4096, temperature=0.85, syste
         "wormgpt480b": results[2] if not isinstance(results[2], Exception) else str(results[2]),
         "minimaxm3": results[3] if not isinstance(results[3], Exception) else str(results[3]),
     }
+
+
+def resolve_persona_override(persona: str | None) -> str | None:
+    """Map persona name to system prompt override, or None for default."""
+    if persona == "redteam":
+        return REDTEAM_SYSTEM_PROMPT
+    if persona == "blackhat":
+        return BLACKHAT_SYSTEM_PROMPT
+    return None

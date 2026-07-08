@@ -43,10 +43,10 @@ async def _engage_worker(queue):
             await asyncio.sleep(5)
             continue
 
-        logger.info(f"Processing engagement {eng.id} -> {eng.target}")
+        logger.info(f"Processing engagement {eng.id} -> {eng.target} (persona={eng.persona or 'default'})")
         eng.current_phase = eng.phases[0] if eng.phases else "recon"
         try:
-            result = await autonomous_handle(eng.target, eng.phases)
+            result = await autonomous_handle(eng.target, eng.phases, persona=eng.persona)
             eng.result = result
             eng.findings_count = result.get("total_findings", 0)
             eng.status = "complete"

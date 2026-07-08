@@ -65,14 +65,10 @@ async def start_engage(
         if p not in PHASES:
             raise HTTPException(status_code=400, detail=f"Unknown phase: {p}")
 
+    persona = req.persona or (default_scope.persona if default_scope.persona else "")
+
     queue = get_queue()
-    eng_id = queue.enqueue(req.target, phases)
-
-    eng = queue.get(eng_id)
-    eng.persona = req.persona or ""
-
-    if req.webhook_url:
-        eng.webhook_url = req.webhook_url
+    eng_id = queue.enqueue(req.target, phases, persona=persona, webhook_url=req.webhook_url or "")
 
     return EngageResponse(
         id=eng_id,
@@ -152,11 +148,14 @@ async def quick_scan(
             detail=f"Target {req.target} is not in allowed scope",
         )
 
+    persona = req.persona or (default_scope.persona if default_scope.persona else "")
+
     phases = ["recon", "scan"]
     result = await autonomous_handle(
         req.target,
         phases=phases,
         no_proxy=req.no_proxy,
+        persona=persona,
     )
     return result
 

@@ -77,6 +77,9 @@ from orchestrator.phishing.pipeline import PhishingPipeline
 from orchestrator.proxy_guard import ProxyGuard, ProxyError
 from orchestrator.exploit.payloads_db import PayloadsDB
 from orchestrator.growth_db import GrowthDB, grow
+from orchestrator.events import EventBus, event_bus
+from orchestrator.scope import AllowedScope, default_scope
+from orchestrator.sandbox import PatchSandbox, sandbox
 
 console = Console()
 
@@ -374,13 +377,16 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
             state["persona"] = None if pick == "default" else pick
             desc = PERSONAS.get(pick, "")
             console.print(f"[green]Persona set to:[/] [bold]{pick}[/] — {desc}")
+            await event_bus.publish("cli", "persona_change", {"persona": state.get("persona")})
             return ""
         persona_name = args[0].lower()
         if persona_name not in PERSONAS:
             console.print(f"[red]Unknown persona: {persona_name}. Available: {', '.join(PERSONAS.keys())}[/]")
             return ""
+        old = state.get("persona")
         state["persona"] = None if persona_name == "default" else persona_name
         console.print(f"[green]Persona set to:[/] [bold]{persona_name}[/] — {PERSONAS[persona_name]}")
+        await event_bus.publish("cli", "persona_change", {"persona": state.get("persona"), "old": old})
         return ""
 
     if cmd == "mode":
@@ -411,9 +417,10 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         if mode_name not in MODES and mode_name not in AGENTS:
             console.print(f"[red]Unknown mode: {mode_name}[/]")
             return ""
-        state["mode"] = mode_name
-        console.print(f"[green]Switched to mode:[/] [bold]{mode_name}[/] — {MODES.get(mode_name, AGENTS.get(mode_name, [''])[0])}")
-        return ""
+            state["mode"] = mode_name
+            console.print(f"[green]Switched to mode:[/] [bold]{mode_name}[/] — {MODES.get(mode_name, AGENTS.get(mode_name, [''])[0])}")
+            await event_bus.publish("cli", "mode_change", {"mode": mode_name})
+            return ""
 
     if cmd == "model":
         if not args:
@@ -561,6 +568,7 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
                 sev = args[i + 1]
             elif a == "--no-proxy":
                 use_proxy = False
+        await event_bus.publish("cli", "scan_start", {"target": target, "ports": ports, "proxy": use_proxy})
         result = await cmd_scan(target, ports=ports, sev=sev, proxy=use_proxy)
         pp(result, title=f"Scan: {target}")
         return ""
@@ -575,8 +583,18 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         for i, a in enumerate(args[1:], 1):
             if a == "--phases" and i + 1 < len(args):
                 phases = [p.strip() for p in args[i + 1].split(",")]
+
+        if not default_scope.check(target) and not no_proxy:
+            console.print(f"[red]Target {target} not in allowed scope. Set RAPHAEL_SCOPE_FILE, RAPHAEL_SCOPE_DOMAINS, or use --no-proxy to bypass.[/]")
+            return ""
+
+        await event_bus.publish("cli", "autonomous_start", {
+            "target": target, "phases": phases, "no_proxy": no_proxy,
+            "persona": state.get("persona"),
+        })
         with console.status(f"[cyan]Running autonomous engagement on {target}..."):
             result = await autonomous.handle(target, phases=phases, no_proxy=no_proxy)
+        await event_bus.publish("cli", "autonomous_done", {"target": target, "status": "done"})
         pp(result, title=f"Autonomous: {target}")
         return ""
 
@@ -1347,6 +1365,9 @@ async def _main() -> None:
     state = {"mode": "single", "model": "auto", "persona": None}
 
     _start_services()
+
+    event_bus.start()
+    console.print("[dim]Event bus started.[/]")
 
     console.print()
     console.print("[dim]All services should be available now. Type /help for commands.[/]")

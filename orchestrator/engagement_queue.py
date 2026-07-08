@@ -50,12 +50,14 @@ class EngagementQueue:
         except Exception as e:
             logger.warning(f"Failed to save engagements: {e}")
 
-    def enqueue(self, target: str, phases: list[str], c2_init: str = "auto") -> str:
+    def enqueue(self, target: str, phases: list[str], c2_init: str = "auto",
+                persona: str = "", webhook_url: str = "") -> str:
         eng_id = uuid.uuid4().hex[:12]
         now = datetime.utcnow().isoformat()
         eng = Engagement(
             id=eng_id, target=target, phases=phases,
             status="queued", created_at=now, updated_at=now,
+            persona=persona, webhook_url=webhook_url,
         )
         self._engagements.append(eng)
         self._save()

@@ -32,6 +32,13 @@ async def handle(target: str, phases: list = None, no_proxy: bool = False, **kwa
     if phases is None:
         phases = PHASES
 
+    persona = kwargs.get("persona")
+    if persona:
+        from orchestrator.providers import resolve_persona_override
+        system_override = resolve_persona_override(persona)
+    else:
+        system_override = None
+
     results = {
         "target": target, "phases": {}, "analytics": {},
         "anonymity": {}, "profile": {}, "timestamp": time.time(),
@@ -120,7 +127,7 @@ async def handle(target: str, phases: list = None, no_proxy: bool = False, **kwa
                     "Based on these results, what should the next phase focus on?\n"
                     "Be specific: which ports, endpoints, or vulnerabilities to prioritize."
                 )}]
-                strategist_output = await call_model("auto", strat_msgs, max_tokens=512, temperature=0.3)
+                strategist_output = await call_model("auto", strat_msgs, max_tokens=512, temperature=0.3, system_override=system_override)
             except Exception:
                 pass
 
