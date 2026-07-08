@@ -144,42 +144,42 @@ class OrchestratorAgent(BaseAgent):
                     leaf.error = f"No agent for {leaf.type.value}"
                     continue
 
-                    if not _check_hitl_orchestrator(leaf.type, leaf.target):
-                        logger.info(f"Orchestrator HITL rejected {leaf.type.value} against {leaf.target}")
-                        leaf.status = TaskStatus.CANCELLED
-                        leaf.error = "Rejected by HITL"
-                        continue
+                if not _check_hitl_orchestrator(leaf.type, leaf.target):
+                    logger.info(f"Orchestrator HITL rejected {leaf.type.value} against {leaf.target}")
+                    leaf.status = TaskStatus.CANCELLED
+                    leaf.error = "Rejected by HITL"
+                    continue
 
-                    task = Task(
-                        id=self._new_task_id(),
-                        goal_type=leaf.type,
-                        target=leaf.target,
-                        agent_name=agent.name,
-                    )
-                    self._active_tasks[task.id] = task
-                    leaf.status = TaskStatus.RUNNING
-                    context.tasks.append(task)
+                task = Task(
+                    id=self._new_task_id(),
+                    goal_type=leaf.type,
+                    target=leaf.target,
+                    agent_name=agent.name,
+                )
+                self._active_tasks[task.id] = task
+                leaf.status = TaskStatus.RUNNING
+                context.tasks.append(task)
 
-                    result = await agent.run(task, context, system_override=self._system_override)
-                    leaf.status = result.status
-                    leaf.findings = [f.to_dict() for f in result.findings]
-                    if result.status == TaskStatus.FAILED:
-                        leaf.error = result.error
+                result = await agent.run(task, context, system_override=self._system_override)
+                leaf.status = result.status
+                leaf.findings = [f.to_dict() for f in result.findings]
+                if result.status == TaskStatus.FAILED:
+                    leaf.error = result.error
 
-                    for f in result.findings:
-                        self.memory.store_finding(f)
+                for f in result.findings:
+                    self.memory.store_finding(f)
 
-                    await self.bus.publish("orchestrator", "task_complete", {
-                        "task_id": task.id,
-                        "goal_type": leaf.type.value,
-                        "status": leaf.status.value,
-                        "findings_count": len(result.findings),
-                    })
+                await self.bus.publish("orchestrator", "task_complete", {
+                    "task_id": task.id,
+                    "goal_type": leaf.type.value,
+                    "status": leaf.status.value,
+                    "findings_count": len(result.findings),
+                })
 
-                    if result.status == TaskStatus.DONE:
-                        completed_tasks.append(task)
+                if result.status == TaskStatus.DONE:
+                    completed_tasks.append(task)
 
-                    del self._active_tasks[task.id]
+                del self._active_tasks[task.id]
 
         return completed_tasks
 
