@@ -130,7 +130,7 @@ class BaseAgent:
         while context.iteration < self.max_iterations:
             context.iteration += 1
 
-            await self.bus.publish("agent.heartbeat", {
+            await self.bus.publish("agent", "heartbeat", {
                 "agent": self.name,
                 "task_id": task.id,
                 "iteration": context.iteration,
@@ -166,15 +166,15 @@ class BaseAgent:
                     task.findings.extend(findings)
                     context.findings.extend(findings)
                     for f in findings:
-                        await self.bus.publish("agent.findings", f.to_dict())
+                        await self.bus.publish("agent", "finding", f.to_dict())
                 except Exception as e:
                     logger.warning(f"[{self.name}] execute({action.get('tool','?')}) failed: {e}")
-                    await self.bus.publish("agent.error", {
+                    await self.bus.publish("agent", "error", {
                         "agent": self.name, "task_id": task.id,
                         "action": action, "error": str(e),
                     })
 
-            await self.bus.publish("agent.progress", {
+            await self.bus.publish("agent", "progress", {
                 "agent": self.name, "task_id": task.id,
                 "iteration": context.iteration,
                 "findings_count": len(task.findings),

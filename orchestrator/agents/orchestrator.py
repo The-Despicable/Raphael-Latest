@@ -140,7 +140,7 @@ class OrchestratorAgent(BaseAgent):
                 if result.status == TaskStatus.FAILED:
                     leaf.error = result.error
 
-                await self.bus.publish("orchestrator.task_complete", {
+                await self.bus.publish("orchestrator", "task_complete", {
                     "task_id": task.id,
                     "goal_type": leaf.type.value,
                     "status": leaf.status.value,

@@ -67,15 +67,15 @@ class AgentSupervisor:
             for key in list(self._heartbeats.keys()):
                 if self.is_dead(key, now):
                     logger.warning(f"[supervisor] Agent {key} is DEAD — no heartbeat in {self.heartbeat_timeout}s")
-                    await self.bus.publish("supervisor.dead_agent", {"key": key, "timestamp": now})
+                    await self.bus.publish("supervisor", "dead_agent", {"key": key, "timestamp": now})
                     del self._heartbeats[key]
 
                 if self.is_livelocked(key):
                     logger.warning(f"[supervisor] Agent {key} is LIVELOCKED — {self.livelock_threshold}+ iterations without progress")
-                    await self.bus.publish("supervisor.livelocked_agent", {"key": key, "timestamp": now})
+                    await self.bus.publish("supervisor", "livelocked_agent", {"key": key, "timestamp": now})
 
                 if self.is_stalled(key, now):
                     logger.warning(f"[supervisor] Agent {key} is STALLED — no progress in {self.max_progress_stall}s")
-                    await self.bus.publish("supervisor.stalled_agent", {"key": key, "timestamp": now})
+                    await self.bus.publish("supervisor", "stalled_agent", {"key": key, "timestamp": now})
 
             await asyncio.sleep(5)
