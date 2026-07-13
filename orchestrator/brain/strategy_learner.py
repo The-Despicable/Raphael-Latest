@@ -59,6 +59,7 @@ PHASE_BUCKET_MAP = {
     "web_fuzz": "recon",
     "web_scan": "recon",
     "supply_chain_recon": "recon",
+    "anonymous_ttp": "entry",
     "port_scan": "recon",
     "exploit": "entry",
     "lpd_exploit": "entry",
@@ -193,11 +194,25 @@ INITIAL_Q = {
     ("low_priv_to_root", "credential"): 3.0,
     ("low_priv_to_root", "postex"): 2.0,
     ("low_priv_to_root", "exploit_chain"): 3.0,
+    # Anonymous TTP seeds
+    ("fnone_s2_l0_p0_w1_phrecon", "anonymous_ttp"): 4.0,
+    ("fnone_s3+_l0_p0_w1_phrecon", "anonymous_ttp"): 4.0,
+    ("fnone_s3+_l1_p0_w1_phrecon", "anonymous_ttp"): 3.0,
+    ("fweb_s1_l0_p0_w1_phentry", "anonymous_ttp"): 5.0,
+    ("fweb_s2_l0_p0_w1_phentry", "anonymous_ttp"): 5.0,
+    ("fweb_s2_l1_p1_w1_phentry", "anonymous_ttp"): 4.0,
+    ("fweb_s3+_l0_p0_w1_phentry", "anonymous_ttp"): 5.0,
+    ("fweb_s3+_l1_p1_w1_phentry", "anonymous_ttp"): 4.0,
+    ("flow_priv_s2_l1_p1_w1_phprivesc", "anonymous_ttp"): 3.0,
+    ("flow_priv_s3+_l1_p1_w1_phprivesc", "anonymous_ttp"): 3.0,
+    ("none_to_web", "anonymous_ttp"): 5.0,
+    ("web_to_low_priv", "anonymous_ttp"): 3.0,
 }
 
 # Default phase priority ordering when Q-table has no data for a state
 DEFAULT_PRIORITY = [
     "recon", "scan", "stealth", "web_scan", "web_fuzz",
+    "anonymous_ttp",
     "lpd_exploit", "pjl_exploit", "relay_chain", "craft_exploit",
     "openstamanager_exploit", "nextjs_exploit",
     "exploit", "exploit_chain", "generic_exploit", "direct_exploit", "llm_exploit",
@@ -210,12 +225,14 @@ DEFAULT_PRIORITY = [
 FOOTHOLD_PRIORITY = {
     "none": [
         "recon", "scan", "stealth", "web_scan", "web_fuzz",
+        "anonymous_ttp",
         "lpd_exploit", "pjl_exploit", "craft_exploit",
         "openstamanager_exploit", "nextjs_exploit",
         "exploit", "generic_exploit", "direct_exploit", "llm_exploit",
         "exploit_chain",
     ],
     "web": [
+        "anonymous_ttp",
         "lpd_exploit", "pjl_exploit", "relay_chain",
         "craft_exploit", "generic_exploit", "exploit",
         "socket_scm", "honeypot_analyzer",
@@ -539,7 +556,8 @@ class StrategyLearner:
             current_bucket = PHASE_BUCKET_MAP.get(best, current_bucket)
 
             if best in ("lpd_exploit", "pjl_exploit", "relay_chain",
-                        "craft_exploit", "generic_exploit", "exploit_chain"):
+                        "craft_exploit", "generic_exploit", "exploit_chain",
+                        "anonymous_ttp"):
                 if simulated_foothold in ("none", "web"):
                     simulated_foothold = "low_priv"
                     simulated_findings.append(

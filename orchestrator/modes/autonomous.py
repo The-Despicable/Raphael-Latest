@@ -180,7 +180,7 @@ async def handle(target: str, phases: list = None, **kwargs) -> dict:
 
         if _RL_ACTIVE and phase_result.success and phase_name in (
             "lpd_exploit", "pjl_exploit", "exploit_chain", "relay_chain",
-            "craft_exploit", "generic_exploit",
+            "craft_exploit", "generic_exploit", "anonymous_ttp",
         ):
             from orchestrator.conductor import get_strategy_plan
             new_strategy = get_strategy_plan("low_priv", all_findings)

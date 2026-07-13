@@ -29,6 +29,10 @@ from orchestrator.brain.phases.socket_scm import run_socket_scm
 from orchestrator.brain.phases.honeypot_analyzer import run_honeypot_analyzer
 from orchestrator.exploit.relay_chain import run_relay_chain
 
+async def _lazy_anonymous_ttp(target, findings=None):
+    from orchestrator.tactics.anonymous_ttp import run_anonymous_ttp
+    return await run_anonymous_ttp(target, findings)
+
 PHASE_EXECUTORS = {
     "recon": run_recon,
     "scan": run_scan,
@@ -62,6 +66,7 @@ PHASE_EXECUTORS = {
     "socket_scm": run_socket_scm,
     "honeypot_analyzer": run_honeypot_analyzer,
     "relay_chain": run_relay_chain,
+    "anonymous_ttp": _lazy_anonymous_ttp,
 }
 
 __all__ = [
@@ -77,5 +82,6 @@ __all__ = [
     "run_pivot",
     "run_stealth", "run_multitarget", "run_reporting", "run_generate_report",
     "run_pjl_exploit", "run_socket_scm", "run_honeypot_analyzer", "run_relay_chain",
+    "run_anonymous_ttp",
     "PHASE_EXECUTORS",
 ]
