@@ -24,6 +24,10 @@ from orchestrator.brain.phases.pivot import run_pivot
 from orchestrator.brain.phases.stealth import run_stealth
 from orchestrator.brain.phases.multitarget import run_multitarget
 from orchestrator.brain.phases.reporting import run_reporting, run_generate_report
+from orchestrator.brain.phases.pjl_exploit import run_pjl_exploit
+from orchestrator.brain.phases.socket_scm import run_socket_scm
+from orchestrator.brain.phases.honeypot_analyzer import run_honeypot_analyzer
+from orchestrator.exploit.relay_chain import run_relay_chain
 
 PHASE_EXECUTORS = {
     "recon": run_recon,
@@ -54,6 +58,10 @@ PHASE_EXECUTORS = {
     "multitarget": run_multitarget,
     "reporting": run_reporting,
     "generate_report": run_generate_report,
+    "pjl_exploit": run_pjl_exploit,
+    "socket_scm": run_socket_scm,
+    "honeypot_analyzer": run_honeypot_analyzer,
+    "relay_chain": run_relay_chain,
 }
 
 __all__ = [
@@ -68,5 +76,6 @@ __all__ = [
     "run_exploit_chain", "run_exploit_chaining",
     "run_pivot",
     "run_stealth", "run_multitarget", "run_reporting", "run_generate_report",
+    "run_pjl_exploit", "run_socket_scm", "run_honeypot_analyzer", "run_relay_chain",
     "PHASE_EXECUTORS",
 ]
