@@ -20,3 +20,16 @@ anonymity_violation.log
 *.ovpn
 *.pdf
 :Zone.Identifier
+
+# Docker secrets and certs
+docker-compose.override.yml
+secrets/
+*.pem
+*.key
+*.crt
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo

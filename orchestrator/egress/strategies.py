@@ -16,15 +16,12 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36",
 ]
 
+# IMPORTANT: Replace with your own fronting domain before production use.
+# See front_domains.py for details on why real third-party domains are
+# not safe to use here.
 FRONT_DOMAINS = [
-    "d1.awsstatic.com",
-    "d2.awsstatic.com",
-    "a0.awsstatic.com",
-    "d3.awsstatic.com",
-    "aws.amazon.com",
-    "dynamodb-fips.us-east-1.amazonaws.com",
-    "cloudfront.net",
-    "d1q0gxqxl6xjqp.cloudfront.net",
+    "your-cdn-fronting-domain-1.example.com",
+    "your-cdn-fronting-domain-2.example.com",
 ]
 
 
@@ -117,24 +114,44 @@ class CDNFrontingStrategy(EgressStrategy):
 
 
 class TLSWrapperStrategy(EgressStrategy):
+    """TLS wrapper with SNI spoofing.
+
+    WARNING: By default, server certificate verification is disabled
+    (CERT_NONE). This means the TLS connection provides encryption but
+    NOT authentication — an active MITM attacker can intercept traffic.
+    Set EGRESS_VERIFY_CERT=true in .env to enable verification if your
+    threat model requires it.
+
+    The default SNI hostnames are placeholders. Replace them with your
+    own domain before production use. Using real third-party domains
+    for SNI spoofing is detectable and potentially illegal."""
+
     def __init__(self, sni_domains: list = None):
         super().__init__()
         self.sni_domains = sni_domains or [
-            "www.google.com",
-            "www.cloudflare.com",
-            "www.github.com",
-            "www.amazon.com",
-            "www.microsoft.com",
+            "your-sni-fronting-domain-1.example.com",
+            "your-sni-fronting-domain-2.example.com",
         ]
+        self._verify_cert = os.getenv("EGRESS_VERIFY_CERT", "false").lower() == "true"
+        if not self._verify_cert:
+            logger.warning(
+                "TLSWrapper: certificate verification disabled (CERT_NONE). "
+                "Set EGRESS_VERIFY_CERT=true in .env to enable."
+            )
 
     def build_client(self, target_host: str = None) -> dict:
         sni = random.choice(self.sni_domains)
         ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        if self._verify_cert:
+            ctx.check_hostname = True
+            ctx.verify_mode = ssl.CERT_REQUIRED
+        else:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            logger.debug(f"  TLS wrapper: SNI={sni}, cert_verify=OFF")
         return {
             "proxies": {},
-            "verify": False,
+            "verify": self._verify_cert,
             "ssl_context": ctx,
             "sni_hostname": sni,
             "headers": self.get_headers(),

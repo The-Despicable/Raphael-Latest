@@ -1,0 +1,103 @@
+# docker-compose.override.yml — Production overrides for Raphael 2.0
+#
+# Copy to docker-compose.override.yml and customize.
+# This file is auto-merged by docker-compose with docker-compose.yml.
+#
+# cp docker-compose.override.example.yml docker-compose.override.yml
+#
+# Best practices configured here:
+#   - Docker secrets for API keys (instead of plain env vars)
+#   - Resource limits on every service
+#   - Log rotation settings
+#   - Healthcheck on tor-proxy so dependent services wait
+#   - Pinned image versions (replace "latest" with specific tags)
+
+version: "3.8"
+
+secrets:
+  openai_api_key:
+    file: ./secrets/openai_api_key.txt
+  nvidia_api_key:
+    file: ./secrets/nvidia_api_key.txt
+  omniroute_api_key:
+    file: ./secrets/omniroute_api_key.txt
+  gophish_api_key:
+    file: ./secrets/gophish_api_key.txt
+  neo4j_password:
+    file: ./secrets/neo4j_password.txt
+  tor_control_pass:
+    file: ./secrets/tor_control_pass.txt
+  api_key:
+    file: ./secrets/api_key.txt
+
+services:
+  # Override services that need secrets instead of env vars
+  autonomous-brain:
+    secrets:
+      - openai_api_key
+      - nvidia_api_key
+      - omniroute_api_key
+      - neo4j_password
+    environment:
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      NVIDIA_API_KEY_FILE: /run/secrets/nvidia_api_key
+      OMNIROUTE_API_KEY_FILE: /run/secrets/omniroute_api_key
+      NEO4J_PASS_FILE: /run/secrets/neo4j_password
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  c2-server:
+    secrets:
+      - api_key
+    environment:
+      API_KEY_FILE: /run/secrets/api_key
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  tor-proxy:
+    secrets:
+      - tor_control_pass
+    environment:
+      PASSWORD_FILE: /run/secrets/tor_control_pass
+    healthcheck:
+      test: ["CMD", "curl", "--socks5", "localhost:9050", "--max-time", "3", "http://check.torproject.org/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  neo4j:
+    secrets:
+      - neo4j_password
+    environment:
+      NEO4J_AUTH_FILE: /run/secrets/neo4j_password
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  phishing:
+    secrets:
+      - gophish_api_key
+    environment:
+      GOPHISH_API_KEY_FILE: /run/secrets/gophish_api_key
+
+  # Pin image versions for stability
+  caido:
+    image: caido/caido:0.38.0
+
+networks:
+  raphael-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

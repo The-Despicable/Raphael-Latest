@@ -1,4 +1,4 @@
-import sys, logging, uuid, time, os
+import sys, logging, uuid, time, os, ssl
 
 sys.path.insert(0, "/raphael")
 
@@ -243,3 +243,32 @@ def health():
         "tools": {name: info["available"] for name, info in TOOLS.items()},
         "sessions_active": len(sessions),
     }
+
+
+def _get_ssl_context():
+    cert_file = os.getenv("SSL_CERT_FILE", "")
+    key_file = os.getenv("SSL_KEY_FILE", "")
+    if not cert_file or not key_file:
+        log.info("No SSL cert/key configured; running without TLS")
+        return None
+    if not os.path.exists(cert_file) or not os.path.exists(key_file):
+        log.warning(f"SSL cert or key file not found ({cert_file}, {key_file}); running without TLS")
+        return None
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(cert_file, key_file)
+    log.info(f"TLS enabled (min TLS 1.2) — cert={cert_file}")
+    return context
+
+
+if __name__ == "__main__":
+    import uvicorn
+    ssl_ctx = _get_ssl_context()
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("C2_PORT", "3501")),
+        ssl_version=ssl.PROTOCOL_TLS_SERVER if ssl_ctx else None,
+        ssl_context=ssl_ctx,
+        log_level="info",
+    )

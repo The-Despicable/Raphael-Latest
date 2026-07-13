@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+from collections import defaultdict
 from typing import Optional
 
 from .models import C2Session, ImplantConfig, TaskResult
@@ -8,12 +9,42 @@ from .noop_backend import NoopBackend
 
 logger = logging.getLogger("c2_manager")
 
+RATE_LIMIT_REGISTER = int(os.getenv("C2_RATE_LIMIT_REGISTER", "10"))
+RATE_LIMIT_WINDOW = int(os.getenv("C2_RATE_LIMIT_WINDOW", "60"))
+MAX_CONCURRENT_SESSIONS = int(os.getenv("C2_MAX_SESSIONS", "500"))
+
+
+class RateLimiter:
+    def __init__(self, max_requests: int, window_seconds: int):
+        self._max = max_requests
+        self._window = window_seconds
+        self._buckets: dict[str, list[float]] = defaultdict(list)
+
+    def allow(self, key: str) -> bool:
+        now = time.time()
+        cutoff = now - self._window
+        bucket = self._buckets[key]
+        bucket[:] = [t for t in bucket if t > cutoff]
+        if len(bucket) >= self._max:
+            return False
+        bucket.append(now)
+        return True
+
+    def prune(self):
+        now = time.time()
+        cutoff = now - self._window * 2
+        for key in list(self._buckets.keys()):
+            self._buckets[key] = [t for t in self._buckets[key] if t > cutoff]
+            if not self._buckets[key]:
+                del self._buckets[key]
+
 
 class C2Manager:
     def __init__(self):
         self._backend = NoopBackend()
         self._sessions: dict[str, C2Session] = {}
-        self._proxy_map: dict[str, str] = {}  # session_id -> socks5h:// url
+        self._proxy_map: dict[str, str] = {}
+        self._rate_limiter = RateLimiter(RATE_LIMIT_REGISTER, RATE_LIMIT_WINDOW)
         self._initialized = False
 
     @property
@@ -23,6 +54,19 @@ class C2Manager:
     @property
     def active_sessions(self) -> list[C2Session]:
         return list(self._sessions.values())
+
+    def check_rate_limit(self, source_ip: str) -> bool:
+        allowed = self._rate_limiter.allow(source_ip)
+        if not allowed:
+            logger.warning(f"Rate limit exceeded for {source_ip}")
+        return allowed
+
+    def can_register(self) -> bool:
+        current = len(self._sessions)
+        if current >= MAX_CONCURRENT_SESSIONS:
+            logger.warning(f"Max sessions reached ({current}/{MAX_CONCURRENT_SESSIONS})")
+            return False
+        return True
 
     async def init(self, backend: str = "auto"):
         if self._initialized:
@@ -48,6 +92,7 @@ class C2Manager:
     async def refresh_sessions(self) -> list[C2Session]:
         sessions = await self._backend.list_sessions()
         self._sessions = {s.id: s for s in sessions}
+        self._rate_limiter.prune()
         return self.active_sessions
 
     async def generate_implant(self, config: ImplantConfig) -> bytes:
