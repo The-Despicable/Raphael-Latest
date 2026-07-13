@@ -9,8 +9,8 @@ from typing import Optional
 API_KEYS: dict[str, dict] = {}
 
 SCOPES = {
-    "admin":     ["engagements:rw", "agents:rw", "findings:rw", "config:rw", "logs:rw"],
-    "operator":  ["engagements:rw", "agents:r",  "findings:rw", "config:r"],
+    "admin":     ["engagements:rw", "engagements:r", "agents:rw", "agents:r", "findings:rw", "findings:r", "config:rw", "config:r", "logs:rw", "logs:r"],
+    "operator":  ["engagements:rw", "engagements:r", "agents:r",  "findings:rw", "config:r"],
     "viewer":    ["engagements:r",  "findings:r"],
     "agent":     ["agents:rw", "findings:w"],
 }
