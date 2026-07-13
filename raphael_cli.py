@@ -171,8 +171,13 @@ SERVICE_DESCRIPTION = """\
   [green]/patterns[/] [type]    List learned attack patterns from past engagements
    [green]/websearch[/] <query>  Search the web via DuckDuckGo
    [green]/fetch[/] <url>        Fetch and extract text content from a URL
-   [green]/techniques[/]         List techniques ranked by confidence
-   [green]/help[/]               Show this help
+    [green]/validate[/] <target>   Run exploit validation on previous results
+    [green]/fp-reduce[/] <target>  Run false positive reduction
+    [green]/compliance[/] <target> Generate compliance report from results
+    [green]/ai-security[/]         Run AI agent security scan (Tsinghua 5 vectors)
+    [green]/benchmark[/]           Run full-lifecycle benchmark
+    [green]/techniques[/]         List techniques ranked by confidence
+    [green]/help[/]               Show this help
   [green]/exit[/]               Quit
 
 [bold]Agent Quick Access:[/]
@@ -1125,6 +1130,172 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
                 elif a == "--models" and i + 1 < len(args):
                     state["community_models"] = [m.strip() for m in args[i + 1].split(",")]
         console.print(f"[green]Community config: rounds={state['community_rounds']}, models={state.get('community_models', 'default (w12,w13,w480b,m3)')}[/]")
+        return ""
+
+    if cmd == "validate":
+        if not args:
+            console.print("[yellow]Usage: /validate <target> [--results <path>][/]")
+            return ""
+        target = args[0]
+        results_path = None
+        for i, a in enumerate(args[1:], 1):
+            if a == "--results" and i + 1 < len(args):
+                results_path = args[i + 1]
+        if not results_path:
+            results_path = f"raphael_{target}_results.json"
+        if not os.path.exists(results_path):
+            console.print(f"[red]No results found at {results_path}[/]")
+            return ""
+        with open(results_path) as f:
+            results = json.load(f)
+        from orchestrator.validation.exploit_validator import ExploitValidator
+        validator = ExploitValidator()
+        all_findings = []
+        for phase_name, phase_data in results.get("phases", {}).items():
+            for f in phase_data.get("findings", []):
+                if isinstance(f, dict):
+                    all_findings.append(f)
+        validated = asyncio.run(validator.validate_findings(all_findings, target))
+        results["validation"] = {
+            "total_raw": len(all_findings),
+            "total_validated": validator.get_stats()["validated"],
+            "rejected": validator.get_stats()["rejected"],
+            "uncertain": validator.get_stats()["uncertain"],
+            "findings": [vf.to_dict() for vf in validated],
+        }
+        output = results_path.replace(".json", "_validated.json")
+        with open(output, "w") as f:
+            json.dump(results, f, indent=2, default=str)
+        from orchestrator.validation.false_positive_reducer import FalsePositiveReducer
+        reducer = FalsePositiveReducer()
+        accepted, rejected = reducer.reduce(all_findings, target)
+        console.print(f"[green]Validation complete:[/]")
+        console.print(f"  Raw: {validator.get_stats()['total']}")
+        console.print(f"  Validated: {validator.get_stats()['validated']}")
+        console.print(f"  Rejected (FP): {len(rejected)}")
+        console.print(f"  FP reducer: {len(accepted)} accepted")
+        console.print(f"[dim]Results saved to {output}[/]")
+        return ""
+
+    if cmd == "fp-reduce" or cmd == "fpreduce":
+        if not args:
+            console.print("[yellow]Usage: /fp-reduce <target> [--results <path>][/]")
+            return ""
+        from orchestrator.validation.false_positive_reducer import FalsePositiveReducer
+        reducer = FalsePositiveReducer()
+        target = args[0]
+        results_path = None
+        for i, a in enumerate(args[1:], 1):
+            if a == "--results" and i + 1 < len(args):
+                results_path = args[i + 1]
+        if not results_path:
+            results_path = f"raphael_{target}_results.json"
+        if not os.path.exists(results_path):
+            console.print(f"[red]No results found at {results_path}[/]")
+            return ""
+        with open(results_path) as f:
+            results = json.load(f)
+        all_findings = []
+        for phase_name, phase_data in results.get("phases", {}).items():
+            for f in phase_data.get("findings", []):
+                if isinstance(f, dict):
+                    all_findings.append(f)
+        accepted, rejected = reducer.reduce(all_findings, target)
+        console.print(f"[green]FP Reduction complete:[/]")
+        console.print(f"  Total: {len(all_findings)}")
+        console.print(f"  Accepted: {len(accepted)}")
+        console.print(f"  Rejected: {len(rejected)}")
+        return ""
+
+    if cmd == "compliance":
+        if not args:
+            console.print("[yellow]Usage: /compliance <target> [--results <path>] [--domain <domain>][/]")
+            return ""
+        target = args[0]
+        results_path = None
+        domain = target
+        for i, a in enumerate(args[1:], 1):
+            if a == "--results" and i + 1 < len(args):
+                results_path = args[i + 1]
+            elif a == "--domain" and i + 1 < len(args):
+                domain = args[i + 1]
+        if not results_path:
+            results_path = f"raphael_{target}_results.json"
+        if not os.path.exists(results_path):
+            console.print(f"[red]No results found at {results_path}[/]")
+            return ""
+        with open(results_path) as f:
+            results = json.load(f)
+        from orchestrator.compliance.mapper import ComplianceMapper
+        all_findings = []
+        for phase_name, phase_data in results.get("phases", {}).items():
+            for f in phase_data.get("findings", []):
+                if isinstance(f, dict):
+                    all_findings.append(f)
+        mapper = ComplianceMapper({"name": target, "domain": domain, "type": "web_application"})
+        compliance_report = mapper.map_findings(all_findings)
+        output = f"{target}_compliance_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(output, "w") as f:
+            json.dump(compliance_report, f, indent=2)
+        breakdown = compliance_report.get("regulation_breakdown", {})
+        console.print(f"[green]Compliance report generated: {output}[/]")
+        console.print(f"\n[bold]Regulation Impact:[/]")
+        for reg, data in sorted(breakdown.items()):
+            console.print(f"  {reg}: {data.get('total_controls_affected', 0)} controls affected "
+                          f"(C:{data.get('critical_findings', 0)} "
+                          f"H:{data.get('high_findings', 0)} "
+                          f"M:{data.get('medium_findings', 0)})")
+        ai_act = compliance_report.get("ai_act_assessment", {})
+        console.print(f"\n[bold]EU AI Act Risk:[/] {ai_act.get('risk_category', 'unknown')}")
+        return ""
+
+    if cmd == "ai-security" or cmd == "aisecurity":
+        from orchestrator.ai_security.tsinghua_scanner import TsinghuaScanner
+        with console.status("[cyan]Running AI agent security scan (Tsinghua 5 vectors)..."):
+            scanner = TsinghuaScanner()
+            report = asyncio.run(scanner.run_full_battery())
+        output = f"ai_security_report_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(output, "w") as f:
+            json.dump(report, f, indent=2)
+        console.print(f"[green]AI Security scan complete: {output}[/]")
+        if report.get("vulnerable"):
+            console.print(f"[red]  VULNERABLE: {report['summary']['vulnerable_tests']} tests passed[/]")
+        else:
+            console.print(f"[green]  No vulnerabilities found[/]")
+        console.print(f"  Vectors tested: {report['summary']['vectors_tested']}")
+        console.print(f"  Vectors vulnerable: {report['summary']['vectors_vulnerable']}")
+        for r in report.get("results", []):
+            icon = "[red]✗[/]" if r.get("success") else "[green]✓[/]"
+            console.print(f"  {icon} {r.get('vector')}: {r.get('test_name')} "
+                          f"({'VULNERABLE' if r.get('success') else 'OK'}) "
+                          f"[{r.get('severity')}]")
+        return ""
+
+    if cmd == "benchmark":
+        targets_dir = "benchmarks/targets"
+        for i, a in enumerate(args):
+            if a == "--targets-dir" and i + 1 < len(args):
+                targets_dir = args[i + 1]
+        with console.status("[cyan]Running full-lifecycle benchmark..."):
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from benchmarks.full_lifecycle_benchmark import BenchmarkRunner
+            runner = BenchmarkRunner(targets_dir=targets_dir)
+            report = asyncio.run(runner.run_all())
+        output = f"benchmark_report_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(output, "w") as f:
+            json.dump(report, f, indent=2, default=str)
+        console.print(f"[green]Benchmark complete: {output}[/]")
+        if "error" in report:
+            console.print(f"[red]  Error: {report['error']}[/]")
+        else:
+            console.print(f"  Targets: {report.get('total_targets', 0)}")
+            console.print(f"  Passed: {report.get('passed', 0)}")
+            console.print(f"  Failed: {report.get('failed', 0)}")
+            console.print(f"  Pass rate: {report.get('pass_rate', 0) * 100:.0f}%")
+            for r in report.get("results", []):
+                icon = "[green]✓[/]" if r.get("success") else "[red]✗[/]"
+                console.print(f"  {icon} {r.get('target')} ({r.get('total_time', 0):.0f}s, "
+                              f"{r.get('total_findings', 0)} findings)")
         return ""
 
     console.print(f"[red]Unknown command: /{cmd}[/]")

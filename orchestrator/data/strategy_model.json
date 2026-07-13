@@ -1,0 +1,181 @@
+{
+  "q_table": {
+    "froot_s3+_l1_p1_w1_phprivesc": {
+      "flag_capture": 5.0,
+      "reporting": 3.0,
+      "exfil": 4.0,
+      "persistence": 4.0
+    },
+    "fhigh_priv_s3+_l1_p1_w1_phpostex": {
+      "exfil": 4.0,
+      "flag_capture": 5.0,
+      "privesc": 5.0,
+      "persistence": 4.0,
+      "reporting": 3.0
+    },
+    "flow_priv_s3+_l1_p1_w1_phprivesc": {
+      "privesc": 5.0,
+      "relay_chain": 5.0,
+      "pjl_exploit": 4.0,
+      "socket_scm": 3.0,
+      "honeypot_analyzer": 3.0,
+      "credential": 4.0,
+      "postex": 3.0,
+      "persistence": 2.0,
+      "anonymous_ttp": 3.0
+    },
+    "flow_priv_s2_l1_p1_w1_phprivesc": {
+      "privesc": 5.0,
+      "relay_chain": 5.0,
+      "pjl_exploit": 4.0,
+      "socket_scm": 3.0,
+      "credential": 4.0,
+      "postex": 3.0,
+      "anonymous_ttp": 3.0
+    },
+    "fweb_s3+_l1_p1_w1_phentry": {
+      "pjl_exploit": 5.0,
+      "relay_chain": 4.0,
+      "socket_scm": 4.0,
+      "honeypot_analyzer": 3.0,
+      "privesc": 3.0,
+      "exploit_chain": 4.0,
+      "anonymous_ttp": 4.0
+    },
+    "fweb_s2_l1_p1_w1_phentry": {
+      "pjl_exploit": 5.0,
+      "relay_chain": 4.0,
+      "socket_scm": 4.0,
+      "honeypot_analyzer": 3.0,
+      "exploit_chain": 4.0,
+      "lpd_exploit": 4.0,
+      "privesc": 3.0,
+      "anonymous_ttp": 4.0
+    },
+    "fweb_s1_l1_p1_w1_phentry": {
+      "relay_chain": 5.0,
+      "pjl_exploit": 4.0,
+      "lpd_exploit": 5.0,
+      "socket_scm": 3.0,
+      "exploit_chain": 3.0,
+      "privesc": 2.0
+    },
+    "fweb_s1_l0_p0_w1_phentry": {
+      "craft_exploit": 5.0,
+      "web_fuzz": 4.0,
+      "web_scan": 4.0,
+      "generic_exploit": 3.0,
+      "direct_exploit": 3.0,
+      "openstamanager_exploit": 4.0,
+      "anonymous_ttp": 5.0
+    },
+    "fweb_s2_l0_p0_w1_phentry": {
+      "craft_exploit": 5.0,
+      "web_fuzz": 4.0,
+      "generic_exploit": 4.0,
+      "direct_exploit": 3.0,
+      "openstamanager_exploit": 4.0,
+      "web_scan": 4.0,
+      "anonymous_ttp": 5.0
+    },
+    "fnone_s0_l0_p0_w0_phrecon": {
+      "recon": 5.0,
+      "scan": 4.0,
+      "stealth": 2.0
+    },
+    "fnone_s1_l0_p0_w0_phrecon": {
+      "recon": 5.0,
+      "scan": 4.0
+    },
+    "fnone_s2_l0_p0_w1_phrecon": {
+      "recon": 4.0,
+      "scan": 4.0,
+      "web_fuzz": 3.0,
+      "web_scan": 3.0,
+      "anonymous_ttp": 4.0
+    },
+    "fnone_s2_l0_p1_w1_phrecon": {
+      "recon": 4.0,
+      "scan": 4.0,
+      "web_fuzz": 3.0,
+      "pjl_exploit": 3.0
+    },
+    "fnone_s2_l1_p0_w1_phrecon": {
+      "recon": 4.0,
+      "scan": 4.0,
+      "lpd_exploit": 5.0,
+      "web_fuzz": 2.0,
+      "exploit_chain": 3.0
+    },
+    "fnone_s3+_l1_p0_w1_phrecon": {
+      "recon": 4.0,
+      "scan": 3.0,
+      "lpd_exploit": 5.0,
+      "exploit_chain": 4.0,
+      "craft_exploit": 3.0,
+      "generic_exploit": 2.0,
+      "web_fuzz": 2.0,
+      "anonymous_ttp": 3.0
+    },
+    "fnone_s3+_l0_p0_w1_phrecon": {
+      "recon": 5.0,
+      "scan": 4.0,
+      "craft_exploit": 4.0,
+      "generic_exploit": 3.0,
+      "web_fuzz": 3.0,
+      "web_scan": 3.0,
+      "openstamanager_exploit": 3.0,
+      "direct_exploit": 2.0,
+      "llm_exploit": 2.0,
+      "anonymous_ttp": 4.0
+    },
+    "none_to_web": {
+      "craft_exploit": 5.0,
+      "lpd_exploit": 5.0,
+      "pjl_exploit": 4.0,
+      "web_fuzz": 3.0,
+      "generic_exploit": 3.0,
+      "exploit_chain": 4.0,
+      "anonymous_ttp": 5.0
+    },
+    "web_to_low_priv": {
+      "relay_chain": 5.0,
+      "privesc": 4.0,
+      "socket_scm": 4.0,
+      "honeypot_analyzer": 3.0,
+      "pjl_exploit": 4.0,
+      "credential": 3.0,
+      "persistence": 2.0,
+      "anonymous_ttp": 3.0
+    },
+    "low_priv_to_root": {
+      "privesc": 5.0,
+      "relay_chain": 5.0,
+      "socket_scm": 4.0,
+      "credential": 3.0,
+      "postex": 2.0,
+      "exploit_chain": 3.0
+    },
+    "fweb_s3+_l0_p0_w1_phentry": {
+      "anonymous_ttp": 5.0
+    },
+    "fweb_s0_l0_p0_w0_phentry": {},
+    "flow_priv_s0_l0_p0_w0_phentry": {},
+    "fhigh_priv_s0_l0_p0_w0_phprivesc": {},
+    "fhigh_priv_s0_l0_p0_w0_phpostex": {},
+    "fhigh_priv_s0_l0_p0_w0_phexfil": {},
+    "froot_s0_l0_p0_w0_phexfil": {},
+    "froot_s0_l0_p0_w0_phpostex": {},
+    "froot_s0_l0_p0_w0_phentry": {},
+    "fweb_s0_l0_p0_w0_phrecon": {
+      "exploit_chaining": -0.00125
+    },
+    "fnone_s0_l0_p0_w0_phpostex": {}
+  },
+  "alpha": 0.3,
+  "gamma": 0.9,
+  "epsilon": 0.4,
+  "episode_count": 0,
+  "total_reward": -0.004166666666666667,
+  "step": 1
+}
