@@ -1,0 +1,107 @@
+{
+  "_schema_version": "2.0",
+  "_note": "Model registry — edit 'enabled' to toggle models, 'default_model' to set the default.",
+
+  "default_model": "auto",
+  "fallback_order": ["w12", "w13", "w480b", "m3"],
+
+  "models": {
+    "auto": {
+      "display": "Auto (Adaptive Router)",
+      "provider": "adaptive_router",
+      "resolves_to": "Dynamically chosen per task type",
+      "description": "Classifies each task (recon, exploit, code, etc.) and routes to the best-performing model based on historical scores. Recommended for autonomous operation.",
+      "enabled": true,
+      "supports_tools": true,
+      "capabilities": ["routing", "fallback", "task_classification"],
+      "icon": "auto"
+    },
+    "w12": {
+      "display": "WormGPT-12B (Fast Default)",
+      "provider": "openai_compatible",
+      "resolves_to": "GPT-4o class model (fast, general-purpose)",
+      "description": "Fast general-purpose model. Used as default for speed-critical operations and as primary fallback.",
+      "enabled": true,
+      "supports_tools": false,
+      "capabilities": ["general", "code", "analysis"],
+      "icon": "fast"
+    },
+    "w13": {
+      "display": "WormGPT-13B (Reasoning)",
+      "provider": "openai_compatible",
+      "resolves_to": "Claude 3.5 Sonnet class model (strong reasoning)",
+      "description": "Strong reasoning and analysis. Used for complex exploitation chains and strategic decisions.",
+      "enabled": true,
+      "supports_tools": false,
+      "capabilities": ["reasoning", "strategy", "planning"],
+      "icon": "reason"
+    },
+    "w480b": {
+      "display": "WormGPT-480B (Deep Analysis)",
+      "provider": "openai_compatible",
+      "resolves_to": "Large 480B parameter model",
+      "description": "Largest available model for deep code review, payload generation, and complex vulnerability analysis. Slower but more thorough.",
+      "enabled": true,
+      "supports_tools": false,
+      "capabilities": ["deep_analysis", "code_generation", "reverse_engineering"],
+      "icon": "deep"
+    },
+    "m3": {
+      "display": "MiniMax-M3 (Local/Lightweight)",
+      "provider": "ollama",
+      "resolves_to": "Local Ollama model (e.g., llama3, mistral)",
+      "description": "Lightweight model for quick local tasks. Runs via Ollama. Best for offline use or when API keys are unavailable.",
+      "enabled": true,
+      "supports_tools": true,
+      "capabilities": ["quick_scan", "local", "offline"],
+      "icon": "local"
+    },
+    "kimi": {
+      "display": "Kimi (Safety-Filtered)",
+      "provider": "openai_compatible",
+      "resolves_to": "Kimi model (prompts sanitized for target IPs/domains)",
+      "description": "Safety-filtered model — prompts are sanitized to remove IPs/domains before sending to avoid refusals.",
+      "enabled": false,
+      "supports_tools": false,
+      "capabilities": ["analysis"],
+      "icon": "filtered"
+    },
+    "gemma4": {
+      "display": "Gemma 4 (Safety-Filtered)",
+      "provider": "openai_compatible",
+      "resolves_to": "Google Gemma 4 (prompts sanitized)",
+      "description": "Safety-filtered model — prompts are sanitized to remove IPs/domains before sending.",
+      "enabled": false,
+      "supports_tools": false,
+      "capabilities": ["analysis"],
+      "icon": "filtered"
+    }
+  },
+
+  "personas": {
+    "default": {
+      "display": "Default (Balanced)",
+      "description": "Standard penetration testing persona. Balances speed and thoroughness."
+    },
+    "redteam": {
+      "display": "Red Team",
+      "description": "Aggressive red-team persona. Prioritizes exploitation speed and evasion."
+    },
+    "blackhat": {
+      "display": "Black Hat (Simulated)",
+      "description": "Simulated adversary persona with no constraints on technique selection."
+    }
+  },
+
+  "phase_model_overrides": {
+    "_note": "Override model for specific engagement phases. Empty string = use default_model.",
+    "recon": "",
+    "scan": "",
+    "exploit": "w13",
+    "postex": "w13",
+    "lateral": "w13",
+    "credential": "",
+    "exfil": "",
+    "phish": ""
+  }
+}
