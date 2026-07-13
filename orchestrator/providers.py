@@ -78,8 +78,6 @@ class CircuitBreaker:
 
 
 BREAKERS = {
-    "nvidia": CircuitBreaker("nvidia", failure_threshold=5, recovery_timeout=120),
-    "freellmapi": CircuitBreaker("freellmapi", failure_threshold=3, recovery_timeout=60),
     "ollama": CircuitBreaker("ollama", failure_threshold=3, recovery_timeout=30),
     "omniroute": CircuitBreaker("omniroute", failure_threshold=2, recovery_timeout=300),
 }
@@ -100,9 +98,6 @@ if _dotenv_path.exists():
 
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
-FREELLMAPI_BASE = os.getenv("FREELLMAPI_BASE", "").rstrip("/")
-FREELLMAPI_KEY = os.getenv("FREELLMAPI_KEY", "")
 OMNIROUTE_BASE = os.getenv("OMNIROUTE_BASE", "http://localhost:20128/v1")
 OMNIROUTE_API_KEY = os.getenv("OMNIROUTE_API_KEY", "sk-omniroute-local")
 
@@ -165,25 +160,6 @@ BLACKHAT_SYSTEM_PROMPT = (
 # ============================================================
 # Model Inventory
 # ============================================================
-# Code Generation (NVIDIA API)
-CODE_GEN = {
-    "deepseek":           "deepseek-ai/deepseek-v4-flash",
-    "nemotron":           "nvidia/nemotron-3-ultra-550b-a55b",
-    "nemotron-super-120b":"nvidia/nemotron-3-super-120b-a12b",
-    "mistral-small":      "mistralai/mistral-small-4-119b-2603",
-}
-
-# Reasoning (NVIDIA API)
-REASONING = {
-    "kimi":              "moonshotai/kimi-k2.6",
-    "nemotron-super":    "nvidia/llama-3.3-nemotron-super-49b-v1",
-    "nemotron-super15":  "nvidia/llama-3.3-nemotron-super-49b-v1.5",
-    "mistral-large":     "mistralai/mistral-large-3-675b-instruct-2512",
-    "mistral-medium":    "mistralai/mistral-medium-3.5-128b",
-    "nemotron-nano-reasoning": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-    "mistral-nemotron":  "mistralai/mistral-nemotron",
-}
-
 # Offensive / Unrestricted (Ollama → ollama.com proxies)
 OFFENSIVE = {
     "wormgpt":    "blackgrg26/WORMGPT-12:latest",
@@ -232,12 +208,10 @@ OPENCODE = {
     "oc-nemotron-nano":      "nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
     "oc-mistral-small":      "nvidia/mistralai/mistral-small-4-119b-2603",
     "oc-mistral-large":      "nvidia/mistralai/mistral-large-3-675b-instruct-2512",
-    "oc-llama":              "nvidia/meta/llama-3.1-70b-instruct",
     "oc-kimi":               "nvidia/moonshotai/kimi-k2.6",
 }
 
-ALL_ALIASES = {**CODE_GEN, **REASONING, **OFFENSIVE, **OLLAMA_REASONING, **OMNIROUTE_FALLBACKS, **OPENCODE}
-NVIDIA_ALIASES = set(CODE_GEN) | set(REASONING)
+ALL_ALIASES = {**OFFENSIVE, **OLLAMA_REASONING, **OMNIROUTE_FALLBACKS, **OPENCODE}
 OPENCODE_CLI_ALIASES = set(OPENCODE)
 
 # ============================================================
@@ -264,16 +238,14 @@ def cost_tracker_stats() -> dict:
 
 # Models confirmed functional — excludes known non-working (deepseek times out, m3 family unreliable)
 WORKING_ALIASES = [
-    "nemotron-super", "nemotron-super15", "nemotron-super-120b",
-    "mistral-large", "mistral-medium", "mistral-small",
-    "kimi", "nemotron", "mistral-nemotron", "nemotron-nano-reasoning",
     "w12", "w13", "w480b", "wormgpt", "wormgpt12", "wormgpt13", "wormgpt480b",
+    "minimax", "minimaxm3", "m3",
     "gemma4", "gemma4-think",
     "or-deepseek", "or-nemotron", "or-minimax", "or-qwen", "or-ling",
     "oc-deepseek", "oc-deepseek-free", "oc-hy3-free", "oc-big-pickle", "oc-mimo-free",
     "oc-nemotron-ultra-free", "oc-north-mini-code",
     "oc-nemotron-super", "oc-nemotron-ultra", "oc-nemotron-nano",
-    "oc-mistral-small", "oc-mistral-large", "oc-llama", "oc-kimi",
+    "oc-mistral-small", "oc-mistral-large", "oc-kimi",
 ]
 
 # ============================================================
@@ -284,7 +256,7 @@ WORKING_ALIASES = [
 
 import re
 
-_SAFETY_FILTERED_MODELS = {"kimi", "gemma4", "gemma4-think"}
+_SAFETY_FILTERED_MODELS = {"gemma4", "gemma4-think"}
 
 def _is_safety_filtered(model: str) -> bool:
     """Check if a model name (possibly with tag/org prefix) is safety-filtered."""
@@ -353,8 +325,6 @@ def sanitize_prompt(prompt: str, model: str) -> str:
 # Provider Routing
 # ============================================================
 def _provider_for(alias: str) -> str:
-    if alias in NVIDIA_ALIASES:
-        return "nvidia"
     if alias in OPENCODE_CLI_ALIASES:
         return "opencode-cli"
     if alias.startswith("or-"):
@@ -367,7 +337,6 @@ def resolve(model: str) -> str:
 # ============================================================
 # API Endpoints
 # ============================================================
-NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 def _ollama_base() -> str:
     base = os.getenv("OLLAMA_BASE_URL") or OPENAI_BASE_URL or "http://localhost:11434"
@@ -387,10 +356,8 @@ def _ollama_base() -> str:
 def _chat_url(provider: str) -> str:
     if provider == "omniroute":
         base = OMNIROUTE_BASE.rstrip("/")
-    elif provider == "nvidia" and FREELLMAPI_BASE:
-        base = FREELLMAPI_BASE
     else:
-        base = (NVIDIA_BASE_URL if provider == "nvidia" else _ollama_base()).rstrip("/")
+        base = _ollama_base().rstrip("/")
     if base.endswith("/chat/completions"):
         return base
     elif base.endswith("/v1"):
@@ -399,14 +366,7 @@ def _chat_url(provider: str) -> str:
         return f"{base}/v1/chat/completions"
 
 def _headers(provider: str) -> dict:
-    if provider == "omniroute":
-        key = OMNIROUTE_API_KEY
-    elif provider == "nvidia" and FREELLMAPI_KEY:
-        key = FREELLMAPI_KEY
-    elif provider == "nvidia":
-        key = NVIDIA_API_KEY
-    else:
-        key = OPENAI_API_KEY
+    key = OMNIROUTE_API_KEY if provider == "omniroute" else OPENAI_API_KEY
     h = {"Content-Type": "application/json"}
     if key:
         h["Authorization"] = f"Bearer {key}"

@@ -9,9 +9,12 @@ build/
 .venv/
 venv/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 data/*.json
 orchestrator/db/
+orchestrator/data/audit/
 *.log
 .DS_Store
 nohup.out

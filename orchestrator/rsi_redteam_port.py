@@ -2,16 +2,12 @@
 """RSI analysis: port RedTeamAgent patterns into Raphael 2.0.
 4-model team with cross-critique and synthesis."""
 
-import asyncio, json, httpx, time, sys, os
-
-API_BASE = "https://integrate.api.nvidia.com/v1"
-API_KEY = os.getenv("NVIDIA_API_KEY")
-if not API_KEY:
-    raise RuntimeError("NVIDIA_API_KEY environment variable required")
+import asyncio, json, time, sys, os
+from orchestrator.providers import call_model
 
 TEAM = {
-    "kimi-k2.6": "moonshotai/kimi-k2.6",
-    "nemotron-ultra-550b": "nvidia/nemotron-3-ultra-550b-a55b",
+    "kimi-k2.6": "oc-kimi",
+    "nemotron-ultra": "oc-nemotron-ultra",
 }
 
 TASK = """You are analyzing RedTeamAgent (https://github.com/NeoTheCapt/RedteamAgent) for porting its best features into Raphael 2.0, an autonomous security platform.
@@ -20,7 +16,7 @@ RAPHAEL 2.0 (existing):
 - 10 Docker microservices: cai-service :3200, mhddos :3300, cloak :3400, c2-server :3501, phishing :3502, recon-pipeline :3503, sword :3600, brain :3700, mcp-hub :3500, tor-proxy
 - 6-phase Sword pipeline: recon -> scan -> exploit -> postex -> exfil -> phish
 - 8 CAI agents: recon, scan, exploit, defend, forensic, oracle, chat, audit
-- Multi-provider LLM routing (FreeLLM/Groq/NVIDIA/Ollama chain)
+- Multi-provider LLM routing (opencode CLI + Ollama + OmniRoute chain)
 - OpSec: Tor + Cloudflare + SSH multi-hop, kill switches, encrypted state
 - ~7900 lines Python, real binaries (nmap, sqlmap, nuclei, hydra, metasploit)
 - No case collection pipeline, no structured resume, no reference library
@@ -89,29 +85,11 @@ YOUR JOB: Produce the FINAL PORTING PLAN. Include:
 
 Be decisive. One unified recommendation. No hedging."""
 
-async def call_model(model_id, prompt, temperature=0.3, max_tokens=4096):
-    async with httpx.AsyncClient(timeout=600) as cl:
-        resp = await cl.post(
-            f"{API_BASE}/chat/completions",
-            headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": model_id,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "stream": False,
-            }
-        )
-        body = resp.json()
-        if "choices" not in body:
-            return f"ERROR: {json.dumps(body)[:500]}"
-        return body["choices"][0]["message"]["content"]
-
-async def safe_call(name, model_id, prompt, temperature=0.3, max_tokens=2048):
+async def safe_call(name, alias, prompt, temperature=0.3, max_tokens=2048):
     t0 = time.time()
     print(f"  Starting {name}...", flush=True)
     try:
-        result = await call_model(model_id, prompt, temperature, max_tokens)
+        result = await call_model(alias, [{"role": "user", "content": prompt}], temperature, max_tokens)
         elapsed = time.time() - t0
         print(f"  {name} done ({elapsed:.0f}s) {len(result)} chars", flush=True)
         return name, result

@@ -12,22 +12,32 @@ import shutil
 import socket
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+# Load .env so env vars from the project are available on the host too
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+if _env_path.exists():
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip().strip("\"'"))
+
 SERVICES = {
-    "cai-service":      {"port": 3201, "path": "/agent/recon",    "method": "POST", "label": "AI Orchestration"},
+    "cai-service":      {"port": 3201, "path": "/",               "method": "GET",  "label": "AI Orchestration"},
     "mhddos-service":   {"port": 3301, "path": "/",               "method": "GET",  "label": "DDoS Engine"},
     "cloak-service":    {"port": 3401, "path": "/",               "method": "GET",  "label": "Traffic Cloaking"},
-    "orchestrator-api": {"port": 3501, "path": "/health",         "method": "GET",  "label": "Orchestrator API"},
-    "c2-server":        {"port": 3505, "path": "/v1/agent/health","method": "GET",  "label": "C2 Server"},
-    "phishing":         {"port": 3502, "path": "/health",         "method": "GET",  "label": "Phishing Engine"},
-    "recon-pipeline":   {"port": 3503, "path": "/health",         "method": "GET",  "label": "Recon Pipeline"},
-    "sword":            {"port": 3600, "path": "/health",         "method": "GET",  "label": "Sword Orchestrator"},
-    "autonomous-brain": {"port": 3700, "path": "/health",         "method": "GET",  "label": "Autonomous Brain"},
-    "kali-tools":       {"port": 3800, "path": "/health",         "method": "GET",  "label": "Kali Tools"},
-    "raphael-api":      {"port": 3900, "path": "/v1/ci/health",   "method": "GET",  "label": "Raphael API"},
+    "orchestrator-api": {"port": 3501, "path": "/health",         "method": "GET",  "label": "C2 Server"},
+    "c2-server":        {"port": 3501, "path": "/health",         "method": "GET",  "label": "C2 Server"},
+    "phishing":         {"port": 3502, "path": "/",               "method": "GET",  "label": "Phishing Engine"},
+    "recon-pipeline":   {"port": 3503, "path": "/",               "method": "GET",  "label": "Recon Pipeline"},
+    "sword":            {"port": 3600, "path": "/",               "method": "GET",  "label": "Sword Orchestrator"},
+    "autonomous-brain": {"port": 3700, "path": "/",               "method": "GET",  "label": "Autonomous Brain"},
+    "kali-tools":       {"port": 3800, "path": "/",               "method": "GET",  "label": "Kali Tools"},
+    "raphael-api":      {"port": 3900, "path": "/",               "method": "GET",  "label": "Raphael API"},
     "tor-proxy":        {"port": 9050, "path": None,              "method": "SOCKS","label": "Tor Proxy"},
     "sliver-server":    {"port": 31337,"path": None,              "method": "TCP",  "label": "Sliver C2"},
     "neo4j":            {"port": 7687, "path": None,              "method": "TCP",  "label": "Neo4j Database"},
@@ -50,15 +60,15 @@ TOOLS = {
 }
 
 DOCKER_CONTAINERS = [
-    "raphael-cai-service", "raphael-mhddos-service", "raphael-cloak-service",
-    "raphael-c2-server", "raphael-phishing", "raphael-recon-pipeline",
-    "raphael-sword", "raphael-autonomous-brain", "raphael-tor-proxy",
-    "raphael-sliver-server", "raphael-neo4j", "raphael-kali-tools",
-    "raphael-raphael-api", "raphael-caido",
+    "cai-service", "mhddos-service", "cloak-service",
+    "c2-server", "phishing", "recon-pipeline",
+    "sword", "autonomous-brain", "tor-proxy",
+    "sliver-server", "neo4j",     "kali-tools",
+    "raphael-api", "caido",
 ]
 
 ENV_CHECKS = {
-    "NVIDIA_API_KEY":   {"required": False, "min_len": 8,  "label": "NVIDIA API Key"},
+
     "OPENAI_API_KEY":   {"required": False, "min_len": 8,  "label": "OpenAI API Key"},
     "TOR_CONTROL_PASS": {"required": True,  "min_len": 16, "label": "Tor Control Password"},
     "API_KEY":          {"required": True,  "min_len": 32, "label": "API Gateway Key"},
@@ -170,32 +180,43 @@ def check_env_var(key: str, cfg: dict) -> CheckResult:
     return CheckResult(key, label, "PASS", f"{len(val)} chars")
 
 
-def check_docker_engine() -> CheckResult:
+def _run_docker(args: list[str], timeout: int = 10) -> subprocess.CompletedProcess:
+    """Try docker with common socket paths."""
+    env = os.environ.copy()
+    if "DOCKER_HOST" not in env:
+        for sock in ["/var/run/docker.sock", "/mnt/wslg/runtime-dir/docker.sock"]:
+            if os.path.exists(sock):
+                env["DOCKER_HOST"] = f"unix://{sock}"
+                break
     try:
         result = subprocess.run(
-            ["docker", "info", "--format", "{{.ServerVersion}}"],
-            capture_output=True, text=True, timeout=10
+            ["docker"] + args, capture_output=True, text=True, timeout=timeout, env=env
         )
         if result.returncode == 0:
-            return CheckResult("docker-engine", "Docker Engine", "PASS", f"v{result.stdout.strip()}")
-        return CheckResult("docker-engine", "Docker Engine", "FAIL", result.stderr.strip()[:60])
+            return result
     except FileNotFoundError:
-        return CheckResult("docker-engine", "Docker Engine", "FAIL", "Docker not installed")
+        pass
+    return subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="Docker not found")
+
+
+def check_docker_engine() -> CheckResult:
+    try:
+        result = _run_docker(["info", "--format", "{{.ServerVersion}}"])
+        if result.returncode == 0:
+            return CheckResult("docker-engine", "Docker Engine", "PASS", f"v{result.stdout.strip()}")
+        return CheckResult("docker-engine", "Docker Engine", "FAIL", result.stderr.strip()[:80])
     except subprocess.TimeoutExpired:
         return CheckResult("docker-engine", "Docker Engine", "FAIL", "Timeout")
 
 
 def check_docker_compose_ver() -> CheckResult:
     try:
-        result = subprocess.run(
-            ["docker", "compose", "version", "--short"],
-            capture_output=True, text=True, timeout=10
-        )
+        result = _run_docker(["compose", "version", "--short"])
         if result.returncode == 0:
             return CheckResult("docker-compose", "Docker Compose", "PASS", f"v{result.stdout.strip()}")
-        return CheckResult("docker-compose", "Docker Compose", "FAIL", result.stderr.strip()[:60])
-    except FileNotFoundError:
-        return CheckResult("docker-compose", "Docker Compose", "FAIL", "Not installed")
+        return CheckResult("docker-compose", "Docker Compose", "FAIL", result.stderr.strip()[:80])
+    except subprocess.TimeoutExpired:
+        return CheckResult("docker-compose", "Docker Compose", "FAIL", "Timeout")
 
 
 def check_env_file() -> CheckResult:
@@ -207,7 +228,7 @@ def check_env_file() -> CheckResult:
 
 
 async def run_all_checks(host: str = "127.0.0.1", check_docker: bool = False) -> dict:
-    results = {"services": [], "tools": [], "docker": [], "env": [], "timestamp": datetime.utcnow().isoformat()}
+    results = {"services": [], "tools": [], "docker": [], "env": [], "timestamp": datetime.now(timezone.utc).isoformat()}
 
     results["env"].append(check_env_file())
     for key, cfg in ENV_CHECKS.items():

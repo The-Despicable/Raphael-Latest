@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
-"""Community-mode implementation: 4 models code-generate Undercover + Retry in parallel."""
+"""Community-mode implementation: 3 models code-generate Undercover + Retry in parallel."""
 
-import asyncio, json, httpx, time, os
+import asyncio, json, time, os
 from config.paths import get_base_dir
-
-API_BASE = "https://integrate.api.nvidia.com/v1"
-API_KEY = os.getenv("NVIDIA_API_KEY")
-if not API_KEY:
-    raise RuntimeError("NVIDIA_API_KEY environment variable required")
+from orchestrator.providers import call_model
 
 TEAM = {
-    "glm-5.1": "z-ai/glm-5.1",
-    "kimi-k2.6": "moonshotai/kimi-k2.6",
-    "nemotron-ultra-550b": "nvidia/nemotron-3-ultra-550b-a55b",
+    "glm-5.1": "oc-hy3-free",
+    "kimi-k2.6": "oc-kimi",
+    "nemotron-ultra": "oc-nemotron-ultra",
 }
 
 CONTEXT = """RAPHAEL CODEBASE CONTEXT for code generation:
@@ -74,24 +70,6 @@ For retry.py:
 
 Write ACTUAL Python code. Not pseudocode. I need to save these files directly."""
 
-async def call_model(model_id, prompt, temperature=0.3, max_tokens=4096):
-    async with httpx.AsyncClient(timeout=600) as cl:
-        resp = await cl.post(
-            f"{API_BASE}/chat/completions",
-            headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": model_id,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "stream": False,
-            }
-        )
-        body = resp.json()
-        if "choices" not in body:
-            return f"ERROR: {json.dumps(body)[:300]}"
-        return body["choices"][0]["message"]["content"]
-
 async def main():
     print("=" * 70)
     print("COMMUNITY MODE: Implementing Undercover + Retry")
@@ -100,12 +78,12 @@ async def main():
 
     contributions = {}
 
-    # Round 1: All 4 propose implementations
+    # Round 1: All propose implementations
     print("▶ ROUND 1: Code Proposals\n")
     
     async def propose(name):
         t0 = time.time()
-        result = await call_model(TEAM[name], CONTEXT, temperature=0.4)
+        result = await call_model(TEAM[name], [{"role": "user", "content": CONTEXT}], temperature=0.4)
         elapsed = time.time() - t0
         print(f"  {name} done ({elapsed:.0f}s)")
         return name, result
@@ -120,7 +98,6 @@ async def main():
     
     cross = ""
     for name, text in contributions.items():
-        # Extract just the code sections
         cross += f"=== {name} ===\n{text}\n\n"
     
     round2_prompt = f"""All 4 proposals are below. Write a CRITIQUE of the approaches:
@@ -135,7 +112,7 @@ Then write your IMPROVED version of undercover.py and retry.py combining the bes
 
     async def refine(name):
         t0 = time.time()
-        result = await call_model(TEAM[name], round2_prompt, temperature=0.3, max_tokens=4096)
+        result = await call_model(TEAM[name], [{"role": "user", "content": round2_prompt}], temperature=0.3, max_tokens=4096)
         elapsed = time.time() - t0
         print(f"  {name} round 2 done ({elapsed:.0f}s)")
         return name, result
@@ -185,7 +162,7 @@ Output format:
 [how to hook into providers.py and adaptive_brain.py]
 ```"""
 
-    final = await call_model(TEAM["kimi-k2.6"], final_prompt, temperature=0.2, max_tokens=8192)
+    final = await call_model(TEAM["kimi-k2.6"], [{"role": "user", "content": final_prompt}], temperature=0.2, max_tokens=8192)
     
     print(final)
     

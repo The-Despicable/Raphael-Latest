@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-"""RSI-style team analysis: 4 NVIDIA models + synthesis.
+"""RSI-style team analysis: 4 models + synthesis.
 Each model independently analyzes Claude patterns for Raphael, then kimi-k2.6 synthesizes."""
 
-import asyncio, json, httpx, time, sys, os
-
-API_BASE = "https://integrate.api.nvidia.com/v1"
-API_KEY = os.getenv("NVIDIA_API_KEY")
-if not API_KEY:
-    raise RuntimeError("NVIDIA_API_KEY environment variable required")
+import asyncio, json, time, sys, os
+from orchestrator.providers import call_model
 
 TEAM = {
-    "deepseek-v4-flash": "deepseek-ai/deepseek-v4-flash",
-    "glm-5.1": "z-ai/glm-5.1",
-    "kimi-k2.6": "moonshotai/kimi-k2.6",
-    "nemotron-ultra-550b": "nvidia/nemotron-3-ultra-550b-a55b",
+    "deepseek-v4-flash": "oc-deepseek",
+    "glm-5.1": "oc-hy3-free",
+    "kimi-k2.6": "oc-kimi",
+    "nemotron-ultra": "oc-nemotron-ultra",
 }
 
 TASK = """You are analyzing Claude Code's architecture for porting to Raphael 2.0, a working autonomous security platform.
@@ -68,24 +64,6 @@ YOUR JOB: Produce the FINAL ANSWER. Include:
 
 Be decisive. One unified recommendation. No hedging."""
 
-async def call_model(model_id, prompt, temperature=0.3, max_tokens=2048):
-    async with httpx.AsyncClient(timeout=300) as cl:
-        resp = await cl.post(
-            f"{API_BASE}/chat/completions",
-            headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": model_id,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "stream": False,
-            }
-        )
-        body = resp.json()
-        if "choices" not in body:
-            return f"ERROR: {json.dumps(body)[:300]}"
-        return body["choices"][0]["message"]["content"]
-
 async def main():
     print("=" * 70)
     print("RSI TEAM ANALYSIS: Claude Patterns × Raphael 2.0")
@@ -99,7 +77,7 @@ async def main():
 
     async def analyze_one(name):
         t0 = time.time()
-        result = await call_model(TEAM[name], TASK, temperature=0.4)
+        result = await call_model(TEAM[name], [{"role": "user", "content": TASK}], temperature=0.4)
         elapsed = time.time() - t0
         print(f"  {name} done ({elapsed:.0f}s)")
         return name, result
@@ -133,7 +111,7 @@ async def main():
 
     async def critique_one(name):
         t0 = time.time()
-        result = await call_model(TEAM[name], critique_prompt, temperature=0.3)
+        result = await call_model(TEAM[name], [{"role": "user", "content": critique_prompt}], temperature=0.3)
         elapsed = time.time() - t0
         print(f"  {name} critique done ({elapsed:.0f}s)")
         return name, result
@@ -153,7 +131,7 @@ async def main():
 
     final = await call_model(
         TEAM["kimi-k2.6"],
-        SYNTHESIS_TASK.format(d=synthesis_input),
+        [{"role": "user", "content": SYNTHESIS_TASK.format(d=synthesis_input)}],
         temperature=0.2,
         max_tokens=4096
     )

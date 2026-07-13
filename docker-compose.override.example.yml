@@ -17,8 +17,6 @@ version: "3.8"
 secrets:
   openai_api_key:
     file: ./secrets/openai_api_key.txt
-  nvidia_api_key:
-    file: ./secrets/nvidia_api_key.txt
   omniroute_api_key:
     file: ./secrets/omniroute_api_key.txt
   gophish_api_key:
@@ -35,12 +33,10 @@ services:
   autonomous-brain:
     secrets:
       - openai_api_key
-      - nvidia_api_key
       - omniroute_api_key
       - neo4j_password
     environment:
       OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
-      NVIDIA_API_KEY_FILE: /run/secrets/nvidia_api_key
       OMNIROUTE_API_KEY_FILE: /run/secrets/omniroute_api_key
       NEO4J_PASS_FILE: /run/secrets/neo4j_password
     deploy:

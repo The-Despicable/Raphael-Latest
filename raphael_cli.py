@@ -486,22 +486,19 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
 
     if cmd == "model":
         if not args:
-            from orchestrator.providers import NVIDIA_ALIASES, OPENCODE_CLI_ALIASES
+            from orchestrator.providers import OPENCODE_CLI_ALIASES
             current = state.get("model", "auto")
             groups = [
                 ("auto", ["auto"]),
             ]
             oc_free = sorted(a for a in WORKING_ALIASES if a.startswith("oc-") and ("free" in a or a in ("oc-big-pickle", "oc-hy3-free", "oc-mimo-free", "oc-north-mini-code")))
             oc_nv = sorted(a for a in WORKING_ALIASES if a.startswith("oc-") and a not in oc_free)
-            nv = sorted(a for a in WORKING_ALIASES if a in NVIDIA_ALIASES and not a.startswith("oc-"))
-            ollama = sorted(a for a in WORKING_ALIASES if a not in NVIDIA_ALIASES and not a.startswith("oc-") and not a.startswith("or-"))
+            ollama = sorted(a for a in WORKING_ALIASES if not a.startswith("oc-") and not a.startswith("or-"))
             or_ = sorted(a for a in WORKING_ALIASES if a.startswith("or-"))
             if oc_free:
                 groups.append(("OpenCode Zen Free", oc_free))
             if oc_nv:
-                groups.append(("NVIDIA (via opencode)", oc_nv))
-            if nv:
-                groups.append(("NVIDIA", nv))
+                groups.append(("OpenCode (NVIDIA-backed)", oc_nv))
             if or_:
                 groups.append(("OmniRoute", or_))
             if ollama:
@@ -545,7 +542,7 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         return ""
 
     if cmd == "models":
-        from orchestrator.providers import NVIDIA_ALIASES, OPENCODE_CLI_ALIASES
+        from orchestrator.providers import OPENCODE_CLI_ALIASES
         table = Table(title="Available Models", box=box.ROUNDED)
         table.add_column("Alias", style="cyan")
         table.add_column("Resolved Model", style="white")
@@ -553,8 +550,8 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         for alias, resolved in sorted(ALL_ALIASES.items()):
             if alias in OPENCODE_CLI_ALIASES:
                 provider = "opencode-cli"
-            elif alias in NVIDIA_ALIASES:
-                provider = "nvidia"
+            elif alias.startswith("or-"):
+                provider = "omniroute"
             else:
                 provider = "ollama"
             style = "bold" if alias in WORKING_ALIASES else "dim"

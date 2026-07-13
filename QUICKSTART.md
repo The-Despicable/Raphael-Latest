@@ -27,7 +27,7 @@ cd raphael-2.0
 ```bash
 cp .env.example .env
 # EDIT .env — set at minimum:
-#   NVIDIA_API_KEY=<your-nvidia-api-key>
+#   OPENAI_API_KEY=<your-openai-compatible-key>
 #   OPENAI_API_KEY=<your-openrouter-or-other-key>
 ```
 
@@ -35,7 +35,7 @@ cp .env.example .env
 
 | Key | Provider | Get it |
 |-----|----------|--------|
-| `NVIDIA_API_KEY` | NVIDIA API (free) | build.nvidia.com → API |
+| `OPENAI_API_KEY` | OpenAI-compatible (Ollama) | provider dashboard → API |
 | `OPENAI_API_KEY` | OpenAI/OpenRouter | platform.openai.com |
 | `OMNIROUTE_API_KEY` | OmniRoute (free fallback) | localhost:20128 |
 
@@ -197,7 +197,7 @@ bash start_hrm.sh
 - [ ] `docker compose ps` — all 9 services running
 - [ ] Ports 3201,3301,3401,3501,3502,3503,3600,3700,9050 accessible
 - [ ] MCP hub running on localhost:9500 (if used)
-- [ ] `.env` has at least NVIDIA_API_KEY or OPENAI_API_KEY
+- [ ] `.env` has at least OPENAI_API_KEY (for Ollama-connected models)
 
 ## 11. References
 

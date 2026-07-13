@@ -31,7 +31,7 @@ Autonomous penetration testing and red-team orchestration platform with multi-ag
 ```bash
 # 1. Clone and configure
 cp .env.example .env
-# Edit .env — set at minimum: NVIDIA_API_KEY, TOR_CONTROL_PASS, NEO4J_PASS, API_KEY
+# Edit .env — set at minimum: TOR_CONTROL_PASS, NEO4J_PASS, API_KEY
 
 # 2. Verify configuration
 python3 scripts/validate_env.py
@@ -49,7 +49,7 @@ curl http://localhost:3900/health
 
 | Variable | Required | Description |
 |---|---|---|
-| `NVIDIA_API_KEY` | Yes | NVIDIA API key for LLM inference |
+| `OPENAI_API_KEY` | No | API key for Ollama-connected models |
 | `OPENAI_API_KEY` | No | Fallback OpenAI-compatible key |
 | `TOR_CONTROL_PASS` | Yes | Tor control password (min 16 chars) |
 | `API_KEY` | Yes | Internal API gateway key (min 32 chars) |

@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 """RSI analysis: What Hermes Agent UI code is worth porting into Raphael 2.0?"""
 
-import asyncio, json, httpx, time, sys, os
-
-API_BASE = "https://integrate.api.nvidia.com/v1"
-API_KEY = os.getenv("NVIDIA_API_KEY")
-if not API_KEY:
-    raise RuntimeError("NVIDIA_API_KEY environment variable required")
+import asyncio, json, time, sys, os
+from orchestrator.providers import call_model
 
 TEAM = {
-    "kimi-k2.6": "moonshotai/kimi-k2.6",
-    "nemotron-ultra-550b": "nvidia/nemotron-3-ultra-550b-a55b",
+    "kimi": "oc-kimi",
+    "nemotron-ultra": "oc-nemotron-ultra",
 }
 
 TASK = """You are evaluating HERMES AGENT (by Nous Research, 208k stars) for UI/UX patterns that could be ported into RAPHAEL 2.0, an autonomous offensive security platform.
@@ -100,30 +96,11 @@ YOUR JOB: Produce the FINAL PORTING PLAN. Include:
 
 Be decisive. One unified recommendation. No hedging."""
 
-async def call_model(model_id, prompt, temperature=0.3, max_tokens=4096):
-    async with httpx.AsyncClient(timeout=600) as cl:
-        resp = await cl.post(
-            f"{API_BASE}/chat/completions",
-            headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": model_id,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "stream": False,
-            }
-        )
-        body = resp.json()
-        if "choices" not in body:
-            return f"ERROR: {json.dumps(body)[:500]}"
-        return body["choices"][0]["message"]["content"]
-
-
-async def safe_call(name, model_id, prompt, temperature=0.3, max_tokens=2048):
+async def safe_call(name, alias, prompt, temperature=0.3, max_tokens=2048):
     t0 = time.time()
     print(f"  Starting {name}...", flush=True)
     try:
-        result = await call_model(model_id, prompt, temperature, max_tokens)
+        result = await call_model(alias, [{"role": "user", "content": prompt}], temperature, max_tokens)
         elapsed = time.time() - t0
         print(f"  {name} done ({elapsed:.0f}s) {len(result)} chars", flush=True)
         return name, result
@@ -178,7 +155,7 @@ async def main():
         synthesis_input += f"\n=== {name} ===\n{text}\n"
 
     _, final = await safe_call(
-        "kimi-synthesis", TEAM["kimi-k2.6"],
+        "kimi-synthesis", TEAM["kimi"],
         SYNTHESIS_TASK.format(d=synthesis_input),
         temperature=0.2, max_tokens=8192
     )

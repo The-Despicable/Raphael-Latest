@@ -317,11 +317,11 @@ nano .env
 
 | Variable | Required | Provider | How to Get |
 |----------|----------|----------|------------|
-| `NVIDIA_API_KEY` | Yes* | NVIDIA build.nvidia.com | Sign up at build.nvidia.com → API Keys |
+| `OPENAI_API_KEY` | No | OpenAI-compatible (Ollama) | Provider dashboard → API key |
 | `OPENAI_API_KEY` | Yes* | OpenAI / OpenRouter | platform.openai.com |
 | `OMNIROUTE_API_KEY` | No | OmniRoute (local proxy) | Run OmniRoute on localhost:20128 |
 
-\* At least one of `NVIDIA_API_KEY` or `OPENAI_API_KEY` is required.
+\* NVIDIA models accessed through opencode CLI (`oc-*` aliases), no direct API key needed.
 
 ### 2.2 Model Inventory (`orchestrator/providers.py`)
 
@@ -346,7 +346,7 @@ nano .env
 
 | Var | Read By |
 |-----|---------|
-| `NVIDIA_API_KEY` | `providers.py:15` |
+| `OPENAI_API_KEY` | `providers.py:99` |
 | `OPENAI_API_KEY` | `providers.py:14` |
 | `OMNIROUTE_BASE` | `providers.py:16` |
 | `OMNIROUTE_API_KEY` | `providers.py:17` |
@@ -443,7 +443,7 @@ pip install -r requirements.txt
 
 # 7. Configure environment
 cp .env.example .env
-nano .env   # Add at minimum: NVIDIA_API_KEY or OPENAI_API_KEY
+nano .env   # Add at minimum: OPENAI_API_KEY for Ollama-connected models
 
 # 8. Pull Ollama models (proxy models — no local weights needed)
 ollama pull blackgrg26/WORMGPT-13:latest

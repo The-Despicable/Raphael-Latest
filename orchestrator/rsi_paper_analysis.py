@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-"""RSI-style paper analysis: 3 models + kimi synthesis.
-Phase 1: independent analysis (parallel), Phase 2: cross-critique, Phase 3: kimi synthesis.
-Uses direct httpx to NVIDIA API (opencode CLI has routing issues with NVIDIA)."""
+"""RSI-style paper analysis: 3 models + synthesis.
+Phase 1: independent analysis (parallel), Phase 2: cross-critique, Phase 3: synthesis.
+"""
 
-import asyncio, json, httpx, time, sys, os
-
-API_BASE = "https://integrate.api.nvidia.com/v1"
-API_KEY = os.getenv("NVIDIA_API_KEY")
-if not API_KEY:
-    raise RuntimeError("NVIDIA_API_KEY environment variable required")
+import asyncio, json, time, sys, os
+from orchestrator.providers import call_model
 
 TEAM = {
-    "kimi": "moonshotai/kimi-k2.6",
-    "nemotron-super": "nvidia/llama-3.3-nemotron-super-49b-v1",
-    "mistral-675b": "mistralai/mistral-large-3-675b-instruct-2512",
+    "kimi": "oc-kimi",
+    "nemotron-super": "oc-nemotron-super",
+    "mistral-675b": "oc-mistral-large",
 }
 
 PAPER_PATH = os.getenv("PAPER_TEXT_PATH", "/tmp/paper_text.txt")
@@ -60,24 +56,6 @@ YOUR JOB: Produce the FINAL REVIEW REPORT. Include:
 
 Be decisive. One unified recommendation. No hedging."""
 
-async def call_model(model_id, prompt, temperature=0.3, max_tokens=4096):
-    async with httpx.AsyncClient(timeout=300) as cl:
-        resp = await cl.post(
-            f"{API_BASE}/chat/completions",
-            headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": model_id,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "stream": False,
-            }
-        )
-        body = resp.json()
-        if "choices" not in body:
-            return f"ERROR: {json.dumps(body)[:500]}"
-        return body["choices"][0]["message"]["content"]
-
 async def main():
     team_list = list(TEAM.items())
     print("=" * 70)
@@ -91,14 +69,14 @@ async def main():
     print("Phase 1: Independent Analysis\n")
     t0_total = time.time()
 
-    async def analyze_one(name, model_id):
+    async def analyze_one(name, alias):
         t0 = time.time()
-        result = await call_model(model_id, TASK, temperature=0.4)
+        result = await call_model(alias, [{"role": "user", "content": TASK}], temperature=0.4)
         elapsed = time.time() - t0
         print(f"  {name} done ({elapsed:.0f}s)")
         return name, result
 
-    tasks = [analyze_one(name, mid) for name, mid in team_list]
+    tasks = [analyze_one(name, alias) for name, alias in team_list]
     done = await asyncio.gather(*tasks)
 
     for name, result in done:
@@ -134,14 +112,14 @@ Now give a CRITIQUE:
 IMPORTANT: The paper above IS real. Your job is to evaluate the analyses against it, not to question whether the paper exists.
 """
 
-    async def critique_one(name, model_id):
+    async def critique_one(name, alias):
         t0 = time.time()
-        result = await call_model(model_id, critique_prompt, temperature=0.3, max_tokens=2048)
+        result = await call_model(alias, [{"role": "user", "content": critique_prompt}], temperature=0.3, max_tokens=2048)
         elapsed = time.time() - t0
         print(f"  {name} critique done ({elapsed:.0f}s)")
         return name, result
 
-    critiques = await asyncio.gather(*[critique_one(name, mid) for name, mid in team_list])
+    critiques = await asyncio.gather(*[critique_one(name, alias) for name, alias in team_list])
     for name, text in critiques:
         all_results[f"{name}_critique"] = text
 
@@ -154,7 +132,7 @@ IMPORTANT: The paper above IS real. Your job is to evaluate the analyses against
 
     final = await call_model(
         TEAM["kimi"],
-        SYNTHESIS_TASK.format(PAPER_TEXT=PAPER_TEXT, d=synthesis_input),
+        [{"role": "user", "content": SYNTHESIS_TASK.format(PAPER_TEXT=PAPER_TEXT, d=synthesis_input)}],
         temperature=0.2,
         max_tokens=4096
     )

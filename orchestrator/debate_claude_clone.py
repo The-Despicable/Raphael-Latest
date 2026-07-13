@@ -1,16 +1,11 @@
-import asyncio, json, httpx, os, time
+import asyncio, json, os, time
 from config.paths import get_base_dir
-
-NVIDIA_KEY = os.getenv("NVIDIA_API_KEY")
-if not NVIDIA_KEY:
-    raise RuntimeError("NVIDIA_API_KEY environment variable required")
-NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-OLLAMA_URL = "http://localhost:11434/v1/chat/completions"
+from orchestrator.providers import call_model
 
 MODELS = [
-    ("deepseek", {"id": "deepseek-ai/deepseek-v4-flash",  "api": "nvidia"}),
-    ("minimax",  {"id": "minimaxai/minimax-m3",           "api": "nvidia"}),
-    ("glm51",    {"id": "z-ai/glm-5.1",                   "api": "nvidia"}),
+    ("deepseek", "oc-deepseek"),
+    ("minimax",  "oc-mimo-free"),
+    ("glm51",    "oc-hy3-free"),
 ]
 
 TOPIC = """RAPHAEL 2.0 CODEBASE AUDIT (what actually exists):
@@ -25,7 +20,7 @@ TOPIC = """RAPHAEL 2.0 CODEBASE AUDIT (what actually exists):
 - No tests except MCP Hub (6 tests)
 - No modes/single.py, ensemble.py, pipeline.py, swarm.py, anon_rsi.py, sword_review.py
 - No shared/ directory (scope/tor/encrypt scattered across modules)
-- Provider routing uses NVIDIA API (121 models available), Ollama, Groq, FreeLLMAPI
+- Provider routing uses opencode CLI + Ollama + OmniRoute fallback
 
 CLAUDE CODE ECOSYSTEM DATA (from Claude-Clone/ directory):
 1. KAIROS: perpetual daemon mode, terminal-focus detection, background subagents, GitHub webhooks
@@ -52,38 +47,10 @@ Finally: given that Raphael already has real working microservices, SWORD pipeli
 
 Be specific. Reference actual filenames and line counts from the audit."""
 
-async def call_model(model_cfg, prompt, temperature=0.7):
-    if model_cfg["api"] == "nvidia":
-        headers = {"Authorization": f"Bearer {NVIDIA_KEY}", "Content-Type": "application/json"}
-        url = NVIDIA_URL
-    else:
-        headers = {"Content-Type": "application/json"}
-        url = OLLAMA_URL
-
-    payload = {
-        "model": model_cfg["id"],
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 2048,
-        "temperature": temperature,
-        "stream": False,
-    }
-    try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=15.0)) as cl:
-            resp = await cl.post(url, json=payload, headers=headers)
-            txt = resp.text
-            if not txt:
-                return f"[ERROR: empty response, status={resp.status_code}]"
-            body = resp.json()
-            if "choices" not in body:
-                return f"[ERROR: {json.dumps(body)[:500]}]"
-            return body["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"[ERROR: {type(e).__name__}: {str(e)[:200]}]"
-
 async def main():
     print("=" * 70)
     print("RAPHAEL 2.0 — CLAUDE-CLONE UTILITY DEBATE")
-    print("Models: GLM 5.1 | DeepSeek V4 Flash | MiniMax M3")
+    print("Models: oc-hy3-free | oc-deepseek | oc-mimo-free")
     print("=" * 70)
 
     contributions = {}
@@ -92,7 +59,7 @@ async def main():
     for r in range(1, rounds + 1):
         print(f"\n{'='*70}\nROUND {r}/{rounds}\n{'='*70}")
 
-        for name, cfg in MODELS:
+        for name, alias in MODELS:
             print(f"\n--- {name.upper()} (R{r}) ---")
             ctx = f"[ROUND {r}/{rounds}]\n\nContext: {TOPIC}\n\nQuestion: {DEBATE_Q}\n\n"
             if contributions:
@@ -103,13 +70,14 @@ async def main():
             else:
                 ctx += "Present your analysis of which patterns are most valuable for Raphael 2.0."
 
-            result = await call_model(cfg, ctx, temperature=0.85 if r == 1 else 0.9)
+            messages = [{"role": "user", "content": ctx}]
+            result = await call_model(alias, messages, temperature=0.85 if r == 1 else 0.9)
             contributions[name] = result
             print(result[:800])
             print(f"[{len(result)} chars]")
 
     print(f"\n{'='*70}")
-    print("FINAL SYNTHESIS (MiniMax M3 — Reasoning)")
+    print("FINAL SYNTHESIS (oc-mimo-free)")
     print(f"{'='*70}")
 
     all_contribs = ""
@@ -127,17 +95,13 @@ Synthesize the strongest unified answer. Provide:
 3. Risk assessment of porting TypeScript patterns to Python
 4. Concrete next steps (file-by-file if relevant)"""
 
-    final = await call_model(
-        MODELS[2][1],  # minimax
-        synthesis_prompt,
-        temperature=0.3
-    )
+    final = await call_model("oc-mimo-free", [{"role": "user", "content": synthesis_prompt}], temperature=0.3)
 
     print(final)
 
     output = {
         "topic": "Claude-Clone utility for Raphael 2.0",
-        "models": {n: c["id"] for n, c in MODELS},
+        "models": [a for _, a in MODELS],
         "rounds": rounds,
         "contributions": {n.upper(): c for n, c in contributions.items()},
         "synthesis": final,

@@ -84,7 +84,7 @@ if [ ! -f .env ]; then
     cp .env.example .env
     echo ""
     echo "  >>> EDIT .env with your API keys <<<"
-    echo "  Minimum required: NVIDIA_API_KEY or OPENAI_API_KEY"
+    echo "  Minimum required: OPENAI_API_KEY (for Ollama-backed models)"
     echo "  nano .env"
 else
     echo "  .env already exists — keeping current config"

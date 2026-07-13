@@ -64,7 +64,7 @@ def main():
     print("=" * 60)
     print()
 
-    check("NVIDIA_API_KEY", "NVIDIA API key", required=False, min_length=8)
+        # NVIDIA_API_KEY removed — access NVIDIA models through opencode CLI (oc-* aliases)
     check("OPENAI_API_KEY", "OpenAI API key", required=False, min_length=8)
     check("TOR_CONTROL_PASS", "Tor control password", required=True, min_length=MIN_PASS_LENGTH)
     check("API_KEY", "API gateway key", required=True, min_length=MIN_API_KEY_LENGTH)

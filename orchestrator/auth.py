@@ -45,7 +45,7 @@ def load_keys():
         if kh not in API_KEYS:
             API_KEYS[kh] = {
                 "name": "API_KEY_legacy",
-                "scopes": ["admin"],
+                "scopes": SCOPES.get("admin", []),
                 "created": time.time(),
             }
 
