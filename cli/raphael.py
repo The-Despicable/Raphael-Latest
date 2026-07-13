@@ -150,7 +150,8 @@ async def api(method, path, body=None, timeout=300):
 
 
 async def cmd_health(args):
-    from cli.health_check import run_all_checks, print_results
+    sys.path.insert(0, str(SCRIPT_DIR))
+    from health_check import run_all_checks, print_results
     host = getattr(args, "host", "127.0.0.1")
     cd = getattr(args, "docker", False) or getattr(args, "all", False)
     cprint(f"\n  RAPHAEL HEALTH CHECK", "bold green")
