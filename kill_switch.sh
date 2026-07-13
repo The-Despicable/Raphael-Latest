@@ -69,7 +69,7 @@ iptables -P OUTPUT DROP
 echo "[+] Kill switch ENABLED"
 echo ""
 echo "Traffic rules:"
-echo "  ✓ VPN tunnel (tun1)         → ALLOW"
+echo "  ✓ VPN tunnel (\$VPN_IF)        → ALLOW"
 echo "  ✓ Docker bridge (br-*)      → ALLOW"
 echo "  ✓ VPN server (TCP 443)      → ALLOW"
 echo "  ✓ DNS (127.0.2.1:53)        → ALLOW"
