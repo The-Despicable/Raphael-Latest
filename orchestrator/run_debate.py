@@ -1,8 +1,4 @@
-import asyncio
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from config.paths import get_base_dir
 
 from orchestrator.providers import call_model, call_parallel
 
@@ -40,9 +36,10 @@ async def handle(question, rounds=2, temperature=0.85):
     return {"rounds": rounds, "contributions": contributions, "final": final}
 
 async def main():
-    question = """Read /home/yaser/Ultimate skill/raphael-2.0/orchestrator/portswigger_findings.txt first.
+    question = """Read {} first.
 
 Our Raphael 2.0 autonomous security pipeline currently has these detection gaps vs HelixSync v2 (37-vuln target):
+""".format(get_base_dir() / "orchestrator" / "portswigger_findings.txt")
 - NO XSS detection (PortSwigger: 3 types, 30 labs)
 - NO SSRF blind/OAST detection  
 - NO JWK injection / kid traversal JWT checks

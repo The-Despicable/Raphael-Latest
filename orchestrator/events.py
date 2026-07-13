@@ -114,15 +114,20 @@ class EventBus:
                     await self._dead_letter.put(event)
 
     def start(self):
+        self._tasks = []
         for topic, subs in self._subscribers.items():
             for sub in subs:
-                asyncio.create_task(self._process_subscriber(topic, sub))
+                self._tasks.append(asyncio.create_task(self._process_subscriber(topic, sub)))
+
+    def stop(self):
+        for t in getattr(self, "_tasks", []):
+            t.cancel()
 
     def dead_letter_count(self) -> int:
         return self._dead_letter.qsize()
 
     def livelock_detected(self) -> bool:
-        return self._livelock.record("__check__") if False else False
+        return self._livelock.record("__check__", 0)
 
 
 event_bus = EventBus()

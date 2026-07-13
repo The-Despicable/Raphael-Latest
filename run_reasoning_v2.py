@@ -3,6 +3,7 @@
 import asyncio, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from config.paths import get_base_dir
 from orchestrator.providers import call_model, call_parallel, resolve
 
 CORPUS = """LLM Hallucination Research Corpus (15 sources from Red Hat article):
@@ -96,7 +97,7 @@ async def main():
     print("=" * 60)
     print(MY_ANALYSIS)
     
-    out = Path("/home/yaser/Ultimate skill/raphael-2.0/reasoning_team_mistral_kimi_gemma4_me.json")
+    out = get_base_dir() / "reasoning_team_mistral_kimi_gemma4_me.json"
     out.write_text(json.dumps({
         "mistral-large": mistral_out,
         "kimi": kimi_out,

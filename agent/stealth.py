@@ -14,7 +14,7 @@ class Stealth:
         try:
             with open("/proc/self/status", "w") as f:
                 f.write("TracerPid: 0\n")
-        except:
+        except Exception:
             pass
 
     @staticmethod
@@ -27,6 +27,6 @@ class Stealth:
             if os.path.exists("/proc/1/cgroup"):
                 cg = open("/proc/1/cgroup").read()
                 checks.append("container" in cg)
-        except:
+        except Exception:
             pass
         return sum(checks) >= 2

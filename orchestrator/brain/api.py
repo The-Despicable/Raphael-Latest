@@ -1,4 +1,4 @@
-import asyncio, json, time, hashlib, os, sys
+import asyncio, json, logging, time, hashlib, os, sys
 
 sys.path.insert(0, "/raphael")
 sys.path.insert(1, os.path.dirname(__file__))
@@ -140,7 +140,7 @@ async def start_autonomous(req: StartRequest):
                 )}]
                 strategist_output = await call_model("auto", strat_msgs, max_tokens=1024, temperature=0.5)
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Non-critical error", exc_info=True)
 
         results["phases"][phase_name] = {
             "success": phase_result.success,

@@ -6,6 +6,7 @@ then kimi synthesizes. Implements based on consensus.
 import asyncio, json, sys, time, os
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from config.paths import get_base_dir
 
 from orchestrator.providers import call_model
 
@@ -201,7 +202,7 @@ Be specific. Give actual class signatures and method signatures."""
         "final_synthesis": str(final),
         "timestamp": time.time(),
     }
-    out_path = Path("/home/yaser/Ultimate skill/raphael-2.0/community_consensus_design.json")
+    out_path = get_base_dir() / "community_consensus_design.json"
     out_path.write_text(json.dumps(report, indent=2, default=str))
     print(f"\nFull report saved to {out_path}")
 

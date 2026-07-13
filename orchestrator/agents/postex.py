@@ -116,7 +116,7 @@ class PostExAgent(BaseAgent):
                     evidence=str(result)[:500],
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_winrm(self, target: str, args: dict) -> list[Finding]:
@@ -135,7 +135,7 @@ class PostExAgent(BaseAgent):
                     evidence=str(result)[:500],
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_bloodhound(self, target: str) -> list[Finding]:
@@ -151,7 +151,7 @@ class PostExAgent(BaseAgent):
                     evidence=str(result)[:500],
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_ladon(self, target: str) -> list[Finding]:
@@ -167,7 +167,7 @@ class PostExAgent(BaseAgent):
                     evidence=str(result)[:500],
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_pupy(self, target: str) -> list[Finding]:
@@ -183,5 +183,5 @@ class PostExAgent(BaseAgent):
                     evidence=str(result)[:500],
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []

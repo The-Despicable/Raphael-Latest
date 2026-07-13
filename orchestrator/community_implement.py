@@ -2,6 +2,7 @@
 """Community-mode implementation: 4 models code-generate Undercover + Retry in parallel."""
 
 import asyncio, json, httpx, time, os
+from config.paths import get_base_dir
 
 API_BASE = "https://integrate.api.nvidia.com/v1"
 API_KEY = os.getenv("NVIDIA_API_KEY")
@@ -194,9 +195,11 @@ Output format:
         "round2": {f"{k}_r2": contributions[f"{k}_r2"] for k in TEAM},
         "final_synthesis": final,
     }
-    with open("/home/yaser/Ultimate skill/raphael-2.0/orchestrator/community_impl_report.json", "w") as f:
+    orchestrator_dir = get_base_dir() / "orchestrator"
+    orchestrator_dir.mkdir(parents=True, exist_ok=True)
+    with open(str(orchestrator_dir / "community_impl_report.json"), "w") as f:
         json.dump(report, f, indent=2)
-    with open("/home/yaser/Ultimate skill/raphael-2.0/orchestrator/community_impl_final.md", "w") as f:
+    with open(str(orchestrator_dir / "community_impl_final.md"), "w") as f:
         f.write(final)
     print("\nSaved to community_impl_report.json and community_impl_final.md")
 

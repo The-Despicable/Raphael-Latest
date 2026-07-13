@@ -1,4 +1,5 @@
-import time
+import logging
+import time, socket
 
 from orchestrator.brain.phases.models import Finding, PhaseResult, Severity
 from orchestrator.scanners.nuclei_scanner import NucleiScanner
@@ -10,12 +11,22 @@ from orchestrator.brain.phases.recon import run_recon
 
 async def run_scan(target: str, findings: list[Finding] = None,
                    nuclei_scanner: NucleiScanner = None,
-                   skip_recon: bool = False) -> PhaseResult:
+                   skip_recon: bool = False,
+                   nuclei_headers: dict = None) -> PhaseResult:
     t0 = time.time()
 
     if not skip_recon and not findings:
         recon = await run_recon(target)
         findings = recon.findings
+
+    # Auto-detect vhost from reverse DNS if no custom headers provided
+    if nuclei_headers is None:
+        try:
+            hostname = socket.gethostbyaddr(target)[0]
+            if hostname != target:
+                nuclei_headers = {"Host": hostname}
+        except (socket.herror, socket.gaierror, OSError):
+            pass
 
     nuclei = nuclei_scanner or NucleiScanner()
     gobuster = GobusterWrapper()
@@ -28,7 +39,7 @@ async def run_scan(target: str, findings: list[Finding] = None,
 
     if nuclei.available:
         try:
-            result = nuclei.scan(target, severity="low")
+            result = await nuclei.scan(target, severity="info", headers=nuclei_headers)
             if "error" not in result:
                 for nf in result.get("findings", []):
                     info = nf.get("info", {})
@@ -38,7 +49,7 @@ async def run_scan(target: str, findings: list[Finding] = None,
                         "medium": Severity.MEDIUM, "low": Severity.LOW,
                         "info": Severity.INFO,
                     }
-                    sev = severity_map.get(severity_raw, Severity.INFO)
+                    sev = severity_map.get(severity_raw.lower(), Severity.INFO)
                     cve_id = None
                     for ref in info.get("classification", {}).get("cve_id", []):
                         cve_id = ref
@@ -53,7 +64,7 @@ async def run_scan(target: str, findings: list[Finding] = None,
                     if ":" in matched:
                         try:
                             port = int(matched.split(":")[-1].split("/")[0])
-                        except ValueError:
+                        except (ValueError, IndexError):
                             pass
                     scan_findings.append(Finding(
                         phase="scan", type="vulnerability", target=target,
@@ -89,7 +100,7 @@ async def run_scan(target: str, findings: list[Finding] = None,
             if dir_result.get("count", 0) > 0:
                 extra_output.append(f"gobuster: {dir_result['count']} paths on {port}")
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Non-critical error", exc_info=True)
 
         try:
             nikto_result = await nikto.scan(url, timeout=180)
@@ -102,7 +113,7 @@ async def run_scan(target: str, findings: list[Finding] = None,
             if nikto_result.get("count", 0) > 0:
                 extra_output.append(f"nikto: {nikto_result['count']} issues on {port}")
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Non-critical error", exc_info=True)
 
         try:
             wfuzz_result = await wfuzz.fuzz(f"{url}/FUZZ", timeout=120)
@@ -115,7 +126,7 @@ async def run_scan(target: str, findings: list[Finding] = None,
             if wfuzz_result.get("count", 0) > 0:
                 extra_output.append(f"wfuzz: {wfuzz_result['count']} hits on {port}")
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Non-critical error", exc_info=True)
 
     # SMB share scanning
     for f in scan_findings:
@@ -134,7 +145,8 @@ async def run_scan(target: str, findings: list[Finding] = None,
                 if writable:
                     extra_output.append(f"smb: {len(writable)} writable shares on {smb_host}")
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Non-critical error", exc_info=True)
+
             break
 
     latency = time.time() - t0

@@ -1,4 +1,5 @@
 import logging
+import shlex
 
 from orchestrator.kali_tools_client import kali
 
@@ -16,7 +17,7 @@ class PetitPotam:
         if username:
             args += f" -u {username}"
         if password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         if hash:
             args += f" -hashes {hash}"
         if domain:
@@ -39,7 +40,7 @@ class PetitPotam:
         if username:
             args += f" -u {username}"
         if password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         if domain:
             args += f" -d {domain}"
         result = await kali.run("netexec", args, timeout=timeout)

@@ -81,7 +81,7 @@ class PostExploitPipeline:
                 results["winrm"] = wr
 
             if username:
-                ne = self.netexec.smb_enum(target_ip, username=username, password=password, hash=hash)
+                ne = await asyncio.to_thread(self.netexec.smb_enum, target_ip, username=username, password=password, hash=hash)
                 results["netexec"] = ne
 
             if not use_skills or "bloodhound" not in results.get("bloodhound", {}):
@@ -92,8 +92,9 @@ class PostExploitPipeline:
                 ls = await asyncio.to_thread(self.ladon.scan, network)
                 results["ladon"] = ls
 
+        c2_result_local = c2_result if not sandbox_active else {}
         results["summary"] = {
-            "c2_deployed": "payload" in str(c2_result) if not sandbox_active else False,
+            "c2_deployed": "payload" in str(c2_result_local),
             "winrm_connected": results.get("winrm", {}).get("connected", False),
             "domain_info": results.get("bloodhound", {}).get("count", 0),
             "pupy_available": self.pupy.available,

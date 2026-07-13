@@ -109,7 +109,7 @@ async def _call(alias, prompt, temperature=0.7, timeout=90, category="default"):
     return await conductor_call(
         alias, prompt, category=category,
         max_tokens=4096, temperature=temperature, timeout=timeout,
-        fallback_model="mistral-large",
+        fallback_model="oc-deepseek-free",
     )
 
 
@@ -170,7 +170,7 @@ Generate 8-12 broad, short (1-3 word) search queries that map the landscape.
 Cover: major players/authors, competing terms/framings, sub-debates, time periods.
 Output ONLY a JSON array of strings: ["query1", "query2", ...]
 Do NOT produce analysis yet."""
-    pq1 = await _call("kimi", phase1_question, temperature=0.5, timeout=60)
+    pq1 = await _call("oc-deepseek-free", phase1_question, temperature=0.5, timeout=60)
     try:
         queries = json.loads(pq1.strip().strip("```json").strip("```").strip())
     except Exception:
@@ -216,7 +216,7 @@ For the 4-6 most promising threads above, generate 2-3 targeted search queries e
 that go deeper. Prioritize sources that are authoritative (papers, official docs, expert analysis).
 Output ONLY a JSON array of strings: ["query1", "query2", ...] — at least 8 queries."""
 
-    pq2 = await _call("kimi", depth_prompt, temperature=0.5, timeout=60)
+    pq2 = await _call("oc-deepseek-free", depth_prompt, temperature=0.5, timeout=60)
     try:
         depth_queries = json.loads(pq2.strip().strip("```json").strip("```").strip())
     except Exception:
@@ -268,7 +268,7 @@ disagreement, criticism, or limitations. Use patterns like:
 
 Output ONLY a JSON array of strings. These must be adversarial — not confirmatory."""
 
-    pq3 = await _call("kimi", adversarial_prompt, temperature=0.6, timeout=60)
+    pq3 = await _call("oc-deepseek-free", adversarial_prompt, temperature=0.6, timeout=60)
     try:
         adv_queries = json.loads(pq3.strip().strip("```json").strip("```").strip())
     except Exception:
@@ -366,9 +366,9 @@ Output format (ONLY after passing the audit):
 2. The synthesized findings, organized by thread/theme, not by search order
 3. Explicit callouts of any disagreement or unresolved uncertainty found in the adversarial cross-check — do not smooth this over into a single confident narrative
 4. A final "open questions" section listing anything still uncertain from Phase 5"""
-    synthesis = await _call("kimi", synthesis_prompt, temperature=0.3, timeout=120, category="strategic")
+    synthesis = await _call("oc-deepseek-free", synthesis_prompt, temperature=0.3, timeout=120, category="strategic")
     if not synthesis or synthesis.startswith("[TIMEOUT") or synthesis.startswith("[ERROR") or synthesis.startswith("[REFUSAL"):
-        synthesis = await _call("mistral-large", synthesis_prompt, temperature=0.3, timeout=120, category="strategic")
+        synthesis = await _call("oc-deepseek-free", synthesis_prompt, temperature=0.3, timeout=120, category="strategic")
 
     sources_text = "\n".join(f"- {m['title']} ({m['url']})" for m in researched) or "No external sources"
 

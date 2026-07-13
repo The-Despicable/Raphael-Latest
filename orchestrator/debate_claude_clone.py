@@ -1,4 +1,5 @@
 import asyncio, json, httpx, os, time
+from config.paths import get_base_dir
 
 NVIDIA_KEY = os.getenv("NVIDIA_API_KEY")
 if not NVIDIA_KEY:
@@ -142,7 +143,7 @@ Synthesize the strongest unified answer. Provide:
         "synthesis": final,
     }
 
-    outpath = "/home/yaser/Ultimate skill/raphael-2.0/orchestrator/debate_claude_clone_output.json"
+    outpath = str(get_base_dir() / "orchestrator" / "debate_claude_clone_output.json")
     with open(outpath, "w") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
     print(f"\nSaved to {outpath}")

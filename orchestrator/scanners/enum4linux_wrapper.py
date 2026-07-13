@@ -1,11 +1,12 @@
 import re
+import shlex
 
 from orchestrator.kali_tools_client import kali
 
 
 class Enum4linuxWrapper:
     async def enum(self, target: str, timeout: int = 120) -> dict:
-        args = f"-a {target} 2>/dev/null"
+        args = f"-a {shlex.quote(target)} 2>/dev/null"
         result = await kali.run("enum4linux", args, timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         users = re.findall(r'user:\[(\S+)\]', stdout)
@@ -23,11 +24,11 @@ class Enum4linuxWrapper:
 class SmbmapWrapper:
     async def scan(self, target: str, username: str = "", password: str = "",
                    timeout: int = 120) -> dict:
-        args = f"-H {target}"
+        args = f"-H {shlex.quote(target)}"
         if username:
-            args += f" -u {username}"
+            args += f" -u {shlex.quote(username)}"
         if password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         args += " 2>/dev/null"
         result = await kali.run("smbmap", args, timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")

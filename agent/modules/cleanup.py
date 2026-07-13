@@ -7,7 +7,7 @@ class Cleanup:
             agent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             shutil.rmtree(agent_dir, ignore_errors=True)
             return True
-        except:
+        except Exception:
             return False
 
     @staticmethod
@@ -20,6 +20,6 @@ class Cleanup:
                     with open(f, "w") as fh:
                         fh.write("")
                     count += 1
-                except:
+                except Exception:
                     pass
         return count

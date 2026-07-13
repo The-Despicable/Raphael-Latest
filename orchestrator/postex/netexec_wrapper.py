@@ -1,3 +1,4 @@
+import shlex
 from typing import Optional
 from orchestrator.kali_tools_client import kali
 
@@ -12,22 +13,22 @@ class NetExecWrapper:
 
     async def smb_pth(self, target: str, username: str, hash: str,
                       module: str = "shares") -> dict:
-        args = f"smb {target} -u {username} -H {hash} -M {module}"
+        args = f"smb {shlex.quote(target)} -u {shlex.quote(username)} -H {shlex.quote(hash)} -M {shlex.quote(module)}"
         return await self._run(args)
 
     async def smb_enum(self, target: str, username: str = None,
-                       password: str = None, hash: str = None) -> dict:
-        args = f"smb {target} -M shares"
+                        password: str = None, hash: str = None) -> dict:
+        args = f"smb {shlex.quote(target)} -M shares"
         if username:
-            args += f" -u {username}"
+            args += f" -u {shlex.quote(username)}"
         if password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         if hash:
-            args += f" -H {hash}"
+            args += f" -H {shlex.quote(hash)}"
         return await self._run(args)
 
     async def ldap_kerberoast(self, target: str, username: str, password: str) -> dict:
-        args = f"ldap {target} -u {username} -p {password} -M kerberoast"
+        args = f"ldap {shlex.quote(target)} -u {shlex.quote(username)} -p {shlex.quote(password)} -M kerberoast"
         return await self._run(args)
 
     async def _run(self, args: str) -> dict:

@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
@@ -9,6 +10,7 @@ from .auth import authenticate, load_api_keys
 from .registry import ToolRegistry
 from .decision_engine import DecisionEngine
 from .security import validate_scope, audit_logger, load_scope_rules
+from config.paths import get_base_dir
 
 logging.basicConfig(level=logging.INFO, format="[MCP] %(levelname)s %(message)s")
 logger = logging.getLogger("mcp_hub")
@@ -47,8 +49,9 @@ class MCPServer:
 
         @self.app.get("/tool-registry.json")
         async def tool_registry():
+            registry_path = get_base_dir() / "mcp-hub" / "static" / "tool-registry.json"
             return FileResponse(
-                "/home/yaser/Ultimate skill/raphael-2.0/mcp-hub/static/tool-registry.json",
+                str(registry_path),
                 media_type="application/json",
             )
 

@@ -9,7 +9,7 @@ class Persistence:
                 f.write(line)
             os.chmod("/etc/cron.d/raphael-agent", 0o644)
             return True
-        except:
+        except Exception:
             return False
 
     @staticmethod
@@ -31,7 +31,7 @@ WantedBy=multi-user.target
                 f.write(unit)
             os.system("systemctl daemon-reload && systemctl enable raphael-agent && systemctl start raphael-agent")
             return True
-        except:
+        except Exception:
             return False
 
     @staticmethod

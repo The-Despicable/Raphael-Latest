@@ -70,13 +70,15 @@ async def run():
         scan_args = args[1:] if len(args) > 1 else []
         ports = "1-1000"
         sev = None
-        proxy = not _check_dev_mode()
         target = args[0] if args else None
         if not target:
             print("Error: target required")
             sys.exit(1)
+        proxy = not _check_dev_mode()
         for i, a in enumerate(scan_args):
-            if a == "--ports" and i + 1 < len(scan_args):
+            if a == "--no-proxy":
+                proxy = False
+            elif a == "--ports" and i + 1 < len(scan_args):
                 ports = scan_args[i + 1]
             elif a == "--nuclei-severity" and i + 1 < len(scan_args):
                 sev = scan_args[i + 1]
@@ -121,18 +123,21 @@ async def run():
             print("Error: target required for engage mode")
             sys.exit(1)
         phases = None
+        no_proxy = _check_dev_mode()
         i = 1
         while i < len(args):
             a = args[i]
-            if a == "--phases" and i + 1 < len(args):
+            if a == "--no-proxy":
+                no_proxy = True
+            elif a == "--phases" and i + 1 < len(args):
                 phases = [p.strip() for p in args[i + 1].split(",")]
                 i += 1
             i += 1
         from brain.autonomous import run_autonomous_engagement
         result = await run_autonomous_engagement(
-            target, phases or ["recon", "scan", "exploit", "postex"],
+            target,             phases or ["recon", "scan", "exploit", "web_scan", "generic_exploit", "web_fuzz", "lpd_exploit", "exploit_chain", "persistence", "flag_capture", "reporting"],
             api_key=os.getenv("API_KEY", ""),
-            enforce_anonymity=True,
+            enforce_anonymity=not no_proxy,
         )
     elif mode == "postex":
         target = args[0] if args else None
@@ -388,10 +393,13 @@ async def run():
         phases = None
         rounds = 1
         use_pso = False
+        no_proxy = _check_dev_mode()
         i = 1
         while i < len(args):
             a = args[i]
-            if a == "--phases" and i + 1 < len(args):
+            if a == "--no-proxy":
+                no_proxy = True
+            elif a == "--phases" and i + 1 < len(args):
                 phases = [p.strip() for p in args[i + 1].split(",")]
                 i += 1
             elif a == "--rounds" and i + 1 < len(args):
@@ -400,7 +408,7 @@ async def run():
             elif a == "--use-pso":
                 use_pso = True
             i += 1
-        result = await autonomous.handle(target, phases=phases, rounds=rounds, use_pso=use_pso)
+        result = await autonomous.handle(target, phases=phases, rounds=rounds, use_pso=use_pso, no_proxy=no_proxy)
     else:
         result = await handler(question)
 

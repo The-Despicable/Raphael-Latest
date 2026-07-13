@@ -182,7 +182,7 @@ async def plan_task(question, output_file=None, use_skills=True):
                     lines.append(f"- {s['name']} ({s['subdomain']}) [relevance: {s['score']}]" + (f" — MITRE: {mitre}" if mitre else ""))
                 skill_context = "\nRelevant Skills:\n" + "\n".join(lines) + "\n"
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
 
     prompt = f"Generate a step-by-step execution plan for:\n\n{question}\n{skill_context}\n\nList 3-8 sequential tactical steps. Include tool names, command syntax, and MITRE ATT&CK technique IDs. Reference the skills above where applicable."
     result, alias, elapsed = await _call_with_fallback(

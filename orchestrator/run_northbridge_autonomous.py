@@ -1,4 +1,5 @@
 import asyncio, json, time, hashlib, os, sys
+from config.paths import get_base_dir
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 from orchestrator.providers import call_model
@@ -222,13 +223,13 @@ async def main():
     results = await run_phases()
     
     # Save full JSON
-    output_file = "/home/yaser/Ultimate skill/raphael-2.0/orchestrator/northbridge_autonomous_results.json"
+    output_file = str(get_base_dir() / "orchestrator" / "northbridge_autonomous_results.json")
     with open(output_file, "w") as f:
         json.dump({k: v for k, v in results.items() if k != "phases" or isinstance(v, dict)}, f, indent=2, default=str)
     
     # Save per-phase outputs
     for phase, data in results["phases"].items():
-        with open(f"/home/yaser/Ultimate skill/raphael-2.0/orchestrator/northbridge_phase_{phase}.txt", "w") as f:
+        with open(str(get_base_dir() / "orchestrator" / f"northbridge_phase_{phase}.txt"), "w") as f:
             f.write(f"Model: {data['model']}\nLatency: {data['latency']}s\nSuccess: {data['success']}\n\n{data['output']}")
     
     print("\n\n=== NORTHBRIDGE AUTONOMOUS MODE COMPLETE ===")

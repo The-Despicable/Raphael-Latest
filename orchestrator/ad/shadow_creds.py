@@ -1,4 +1,4 @@
-import logging, re
+import logging, re, shlex
 
 from orchestrator.kali_tools_client import kali
 
@@ -15,8 +15,8 @@ class ShadowCredentials:
         target: DC IP or hostname
         computer: target computer account (e.g. DC01$)
         """
-        auth = f"-u {username}"
-        auth += f" -p {password}" if password else f" -H {hash}"
+        auth = f"-u {shlex.quote(username)}"
+        auth += f" -p {shlex.quote(password)}" if password else f" -H {shlex.quote(hash)}"
         args = f"ldap {target} {auth} -M shadow-credentials -o COMPUTER={computer}"
         if dc_ip:
             args += f" -o DC_IP={dc_ip}"

@@ -39,7 +39,7 @@ class C2Manager:
                     logger.info("C2: using Sliver backend")
                     return
             except Exception:
-                pass
+                logger.debug("Non-critical error", exc_info=True)
 
         if backend == "noop":
             self._backend = NoopBackend()

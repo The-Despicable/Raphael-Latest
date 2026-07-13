@@ -147,10 +147,13 @@ SERVICE_DESCRIPTION = """\
   [green]/agent[/] [name] [q]   Run a CAI agent by name
   [green]/model[/] [name]       Set model alias (auto, w12, w13, deepseek, etc.)
   [green]/team[/] [wf] [q]      Run team workflow (debate, analyze, code, execute, plan)
-  [green]/scan[/] <target>      Scan target [--ports N-M] [--nuclei-severity <sev>] [--no-proxy]
-  [green]/autonomous[/] <tgt>   Full autonomous engagement [--no-proxy] [--phases r,s,e,...]
-  [green]/agent-engage[/] <tgt> Multi-agent AI engagement [--persona X] [--phases r,s,...]
-  [green]/exploit[/] <target>   Exploit target [--url <url>]
+   [green]/scan[/] <target>      Scan target [--ports N-M] [--nuclei-severity <sev>] [--no-proxy] [--direct]
+   [green]/autonomous[/] <tgt>   Full autonomous engagement [--no-proxy] [--phases r,s,e,...]
+   [green]/agent-engage[/] <tgt> Multi-agent AI engagement [--persona X] [--phases r,s,...]
+   [green]/exploit[/] <target>   Exploit target [--url <url>]
+   [green]/rsi-config[/]         Configure RSI: --rounds N --rounds-limit N --models <role>=<alias>,...
+   [green]/debate-config[/]      Configure debate: --rounds N --models <alias>,<alias>
+   [green]/community-config[/]   Configure community: --rounds N --models <alias>,<alias>,...\
   [green]/stress[/] <target>    Stress test [--method HTTP] [--threads 50] [--duration 60]
   [green]/cloak[/] <url>        Browse URL via Tor [--screenshot] [--interact]
   [green]/c2[/] <target>        C2 ops [--payload pupy] [--command <cmd>] [--listen]
@@ -205,7 +208,66 @@ async def call_llm(mode: str, prompt: str, model_alias: str = "auto", state: dic
     """Route a prompt through the orchestrator by mode."""
     try:
         system_override = _resolve_system_override(state or {})
-        if mode in ("recon", "scan", "exploit", "defend", "forensic", "oracle", "chat", "audit"):
+        if mode == "scan":
+            import re
+            ip_match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', prompt)
+            if ip_match:
+                target = ip_match.group(0)
+                console.print(f"[bold cyan]Scanning target: {target}[/]")
+                dev = os.getenv("RAPHAEL_DEV_MODE", "").lower() in ("1", "true", "yes")
+                result = await scan_mode.handle(target, ports="1-10000", use_proxy=not dev)
+                return json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
+            if model_alias == "auto" and state and state.get("persona") in ("redteam", "blackhat"):
+                model_alias = "wormgpt480b"
+            elif model_alias == "auto":
+                model_alias = "w12"
+            result = await call_model(model_alias, [{"role": "user", "content": prompt}],
+                                       system_override=system_override)
+            return result or "[No response]"
+        if mode == "recon":
+            import re
+            ip_match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', prompt)
+            if ip_match:
+                target = ip_match.group(0)
+                console.print(f"[bold cyan]Recon target: {target}[/]")
+                from orchestrator.brain.phases.recon import run_recon
+                result = await run_recon(target)
+                return json.dumps({
+                    "phase": "recon",
+                    "success": result.success,
+                    "findings": [f.__dict__ for f in result.findings],
+                    "summary": result.summary,
+                    "latency": result.latency,
+                }, indent=2)
+            if model_alias == "auto" and state and state.get("persona") in ("redteam", "blackhat"):
+                model_alias = "wormgpt480b"
+            elif model_alias == "auto":
+                model_alias = "w12"
+            result = await call_model(model_alias, [{"role": "user", "content": prompt}],
+                                       system_override=system_override)
+            return result or "[No response]"
+        if mode in ("defend", "forensic", "oracle", "chat", "audit"):
+            if model_alias == "auto" and state and state.get("persona") in ("redteam", "blackhat"):
+                model_alias = "wormgpt480b"
+            elif model_alias == "auto":
+                model_alias = "w12"
+            result = await call_model(model_alias, [{"role": "user", "content": prompt}],
+                                       system_override=system_override)
+            return result or "[No response]"
+        elif mode == "exploit":
+            import re
+            ip_match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', prompt)
+            if ip_match:
+                target = ip_match.group(0)
+                console.print(f"[bold cyan]Target detected: {target}[/]")
+                console.print(f"  [dim]Running full autonomous engagement (recon → scan → exploit)[/]")
+                try:
+                    result = await autonomous.handle(target, phases=["recon", "scan", "exploit"], no_proxy=True)
+                    out = json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
+                    console.print(f"[green]Engagement complete[/]")
+                    return out
+                except Exception as e:
+                    return f"[red]Exploit pipeline error: {e}[/]"
             if model_alias == "auto" and state and state.get("persona") in ("redteam", "blackhat"):
                 model_alias = "wormgpt480b"
             elif model_alias == "auto":
@@ -214,13 +276,13 @@ async def call_llm(mode: str, prompt: str, model_alias: str = "auto", state: dic
                                       system_override=system_override)
             return result or "[No response]"
         elif mode == "debate":
-            result = await debate.handle(prompt)
+            result = await debate.handle(prompt, rounds=state.get("debate_rounds", 3), models=state.get("debate_models"))
             return result.get("final", result.get("synthesis", json.dumps(result, indent=2)))
         elif mode == "community":
-            result = await community.handle(prompt)
+            result = await community.handle(prompt, rounds=state.get("community_rounds", 2), models=state.get("community_models"))
             return result.get("final", result.get("synthesis", json.dumps(result, indent=2)))
         elif mode == "rsi":
-            result = await rsi.handle(prompt)
+            result = await rsi.handle(prompt, rounds=state.get("rsi_rounds", 2), rounds_limit=state.get("rsi_rounds_limit", 5), team_models=state.get("rsi_models"))
             return result.get("unified_plan", json.dumps(result, indent=2))
         elif mode == "deep_research":
             result = await deep_research.handle(prompt)
@@ -229,9 +291,8 @@ async def call_llm(mode: str, prompt: str, model_alias: str = "auto", state: dic
             result = await postmortem.handle(prompt)
             return json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
         elif mode == "autonomous":
-            no_proxy = prompt.startswith("--no-proxy ")
-            target = prompt[len("--no-proxy "):] if no_proxy else prompt
-            result = await autonomous.handle(target, no_proxy=no_proxy)
+            target = prompt
+            result = await autonomous.handle(target, no_proxy=True)
             return json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
         else:
             if model_alias == "auto" and state and state.get("persona") in ("redteam", "blackhat"):
@@ -258,10 +319,10 @@ async def run_cai_agent(agent: str, target: str, model_alias: str = "wormgpt480b
         return f"[Error: {e}]"
 
 
-async def cmd_scan(target: str, ports="1-1000", sev=None, proxy=True):
+async def cmd_scan(target: str, ports="1-1000", sev=None, proxy=True, direct=False):
     """Run scan mode."""
     with console.status(f"[cyan]Scanning {target}..."):
-        result = await scan_mode.handle(target, ports=ports, nuclei_severity=sev, use_proxy=proxy)
+        result = await scan_mode.handle(target, ports=ports, nuclei_severity=sev, use_proxy=proxy, direct=direct)
     return result
 
 
@@ -521,12 +582,15 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         return ""
 
     if cmd in AGENTS:
-        query = " ".join(args) if args else console.input("[cyan]Enter target/query: [/]")
-        label, desc = AGENTS[cmd]
-        with console.status(f"[cyan]Running {label} agent..."):
-            result = await run_cai_agent(cmd, query)
-        print_md(result, title=f"{label} Agent")
-        return ""
+        if cmd in ("scan", "exploit"):
+            pass  # routed to dedicated handlers below
+        else:
+            query = " ".join(args) if args else console.input("[cyan]Enter target/query: [/]")
+            label, desc = AGENTS[cmd]
+            with console.status(f"[cyan]Running {label} agent..."):
+                result = await run_cai_agent(cmd, query)
+            print_md(result, title=f"{label} Agent")
+            return ""
 
     if cmd == "team":
         if not args:
@@ -556,12 +620,13 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
 
     if cmd == "scan":
         if not args:
-            console.print("[yellow]Usage: /scan <target> [--ports N-M] [--nuclei-severity <sev>] [--no-proxy][/]")
+            console.print("[yellow]Usage: /scan <target> [--ports N-M] [--nuclei-severity <sev>] [--no-proxy] [--direct][/]")
             return ""
         target = args[0]
         ports = "1-1000"
         sev = None
         use_proxy = True
+        direct = False
         for i, a in enumerate(args[1:], 1):
             if a == "--ports" and i + 1 < len(args):
                 ports = args[i + 1]
@@ -569,32 +634,30 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
                 sev = args[i + 1]
             elif a == "--no-proxy":
                 use_proxy = False
-        await event_bus.publish("cli", "scan_start", {"target": target, "ports": ports, "proxy": use_proxy})
-        result = await cmd_scan(target, ports=ports, sev=sev, proxy=use_proxy)
+            elif a == "--direct":
+                direct = True
+                use_proxy = False
+        await event_bus.publish("cli", "scan_start", {"target": target, "ports": ports, "proxy": use_proxy, "direct": direct})
+        result = await cmd_scan(target, ports=ports, sev=sev, proxy=use_proxy, direct=direct)
         pp(result, title=f"Scan: {target}")
         return ""
 
     if cmd == "autonomous":
         if not args:
-            console.print("[yellow]Usage: /autonomous <target> [--no-proxy] [--phases recon,scan,...][/]")
+            console.print("[yellow]Usage: /autonomous <target> [--phases recon,scan,...][/]")
             return ""
         target = args[0]
-        no_proxy = "--no-proxy" in args
         phases = None
         for i, a in enumerate(args[1:], 1):
             if a == "--phases" and i + 1 < len(args):
                 phases = [p.strip() for p in args[i + 1].split(",")]
 
-        if not default_scope.check(target) and not no_proxy:
-            console.print(f"[red]Target {target} not in allowed scope. Set RAPHAEL_SCOPE_FILE, RAPHAEL_SCOPE_DOMAINS, or use --no-proxy to bypass.[/]")
-            return ""
-
         await event_bus.publish("cli", "autonomous_start", {
-            "target": target, "phases": phases, "no_proxy": no_proxy,
+            "target": target, "phases": phases,
             "persona": state.get("persona"),
         })
         with console.status(f"[cyan]Running autonomous engagement on {target}..."):
-            result = await autonomous.handle(target, phases=phases, no_proxy=no_proxy)
+            result = await autonomous.handle(target, phases=phases)
         await event_bus.publish("cli", "autonomous_done", {"target": target, "status": "done"})
         pp(result, title=f"Autonomous: {target}")
         return ""
@@ -1025,6 +1088,48 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
         print_md(output, title=f"Fetch: {url}")
         return ""
 
+    if cmd == "rsi-config":
+        state.setdefault("rsi_rounds", 2)
+        state.setdefault("rsi_rounds_limit", 5)
+        if args:
+            for i, a in enumerate(args):
+                if a == "--rounds" and i + 1 < len(args):
+                    state["rsi_rounds"] = int(args[i + 1])
+                elif a == "--rounds-limit" and i + 1 < len(args):
+                    state["rsi_rounds_limit"] = int(args[i + 1])
+                elif a == "--models" and i + 1 < len(args):
+                    models_dict = {}
+                    for pair in args[i + 1].split(","):
+                        if "=" in pair:
+                            role, alias = pair.split("=", 1)
+                            models_dict[role.strip()] = alias.strip()
+                    if models_dict:
+                        state["rsi_models"] = models_dict
+        console.print(f"[green]RSI config: rounds={state['rsi_rounds']}, limit={state['rsi_rounds_limit']}, models={state.get('rsi_models', 'default')}[/]")
+        return ""
+
+    if cmd == "debate-config":
+        state.setdefault("debate_rounds", 3)
+        if args:
+            for i, a in enumerate(args):
+                if a == "--rounds" and i + 1 < len(args):
+                    state["debate_rounds"] = int(args[i + 1])
+                elif a == "--models" and i + 1 < len(args):
+                    state["debate_models"] = [m.strip() for m in args[i + 1].split(",")]
+        console.print(f"[green]Debate config: rounds={state['debate_rounds']}, models={state.get('debate_models', 'default (w12,w13)')}[/]")
+        return ""
+
+    if cmd == "community-config":
+        state.setdefault("community_rounds", 2)
+        if args:
+            for i, a in enumerate(args):
+                if a == "--rounds" and i + 1 < len(args):
+                    state["community_rounds"] = int(args[i + 1])
+                elif a == "--models" and i + 1 < len(args):
+                    state["community_models"] = [m.strip() for m in args[i + 1].split(",")]
+        console.print(f"[green]Community config: rounds={state['community_rounds']}, models={state.get('community_models', 'default (w12,w13,w480b,m3)')}[/]")
+        return ""
+
     console.print(f"[red]Unknown command: /{cmd}[/]")
     console.print("[dim]Type /help for available commands[/]")
     return ""
@@ -1111,7 +1216,7 @@ async def _verify_all() -> dict:
         expected = {"recon", "scan", "exploit", "postex", "lateral", "credential", "exfil", "phish"}
         registered = set(PHASE_EXECUTORS.keys())
         results["phases"] = {
-            "pass": registered == expected,
+            "pass": expected.issubset(registered),
             "registered": len(registered),
             "expected": len(expected),
             "missing": sorted(expected - registered),

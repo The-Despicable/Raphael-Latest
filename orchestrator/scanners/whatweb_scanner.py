@@ -33,9 +33,11 @@ class WhatwebScanner:
     def available(self) -> bool:
         return True
 
-    def scan(self, target: str, aggression: int = 1) -> dict:
+    def scan(self, target: str, aggression: int = 1, _retries: int = 0) -> dict:
+        if _retries > 2:
+            return {"error": f"Connection failed: {target}", "target": target}
         if not target.startswith(("http://", "https://")):
-            target = f"https://{target}"
+            target = f"http://{target}"
 
         if self.pg:
             self.pg._enforce_timing()
@@ -44,13 +46,18 @@ class WhatwebScanner:
             proxies = None
             if self.pg and self.pg._session:
                 proxies = {"http": "socks5h://127.0.0.1:9050", "https": "socks5h://127.0.0.1:9050"}
-            r = requests.get(target, timeout=15, verify=False, proxies=proxies,
+            r = requests.get(target, timeout=15, verify=False, proxies=proxies, allow_redirects=True,
                              headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0 Safari/537.36"})
-            return self._detect(r, target)
+            if r.status_code in (301, 302, 303, 307, 308):
+                location = r.headers.get("Location", "")
+                if location and "://" in location:
+                    alt = location if location.startswith(("http://", "https://")) else target
+                    return self.scan(alt, aggression, _retries=_retries + 1)
+            return self._detect(r, target if r.status_code < 400 else r.url)
         except requests.ConnectionError:
-            alt = target.replace("https://", "http://") if "https" in target else target.replace("http://", "https://")
+            alt = target.replace("http://", "https://") if "http" in target else target.replace("https://", "http://")
             if alt != target:
-                return self.scan(alt, aggression)
+                return self.scan(alt, aggression, _retries=_retries + 1)
             return {"error": f"Connection failed: {target}", "target": target}
         except Exception as e:
             return {"error": str(e), "target": target}

@@ -1,3 +1,4 @@
+import json
 import time
 import logging
 from typing import Optional
@@ -18,15 +19,21 @@ def _extract_creds(findings: list[Finding] = None) -> list[dict]:
     creds = []
     for f in findings:
         if f.type == "credential" and f.evidence:
+            parts = f.evidence.split(":")
+            if len(parts) >= 2:
+                creds.append({"user": parts[0].strip(), "pass": ":".join(parts[1:]).strip()})
+        if f.payload and (":" in f.payload or f.payload.startswith("{")):
             try:
-                parts = f.evidence.split(":")
-                if len(parts) >= 2:
-                    creds.append({"user": parts[0].strip(), "pass": ":".join(parts[1:]).strip()})
-            except Exception:
-                pass
-        if f.payload and ":" in f.payload:
-            parts = f.payload.split(":", 1)
-            creds.append({"user": parts[0], "pass": parts[1]})
+                pdata = json.loads(f.payload)
+                if isinstance(pdata, dict):
+                    user = pdata.get("user") or pdata.get("username") or ""
+                    pwd = pdata.get("password") or pdata.get("pass") or pdata.get("hash") or ""
+                    if user and pwd:
+                        creds.append({"user": str(user), "pass": str(pwd)})
+            except (json.JSONDecodeError, TypeError):
+                if ":" in f.payload:
+                    parts = f.payload.split(":", 1)
+                    creds.append({"user": parts[0], "pass": parts[1]})
     return creds
 
 
@@ -102,7 +109,7 @@ async def run_postex(target: str, findings: list[Finding] = None,
 
     if ad.has_impacket:
         try:
-            np_result = ad.get_np_users(target, target, proxy_env)
+            np_result = await ad.get_np_users(target, domain="", proxy_env=proxy_env)
             if np_result.get("asrep_users"):
                 for u in np_result["asrep_users"][:10]:
                     postex_findings.append(Finding(
@@ -113,7 +120,7 @@ async def run_postex(target: str, findings: list[Finding] = None,
                         raw=np_result,
                     ))
 
-            spn_result = ad.get_user_spns(target, target, proxy_env=proxy_env)
+            spn_result = await ad.get_user_spns(target, target, proxy_env=proxy_env)
             if spn_result.get("spns"):
                 for spn in spn_result["spns"][:10]:
                     postex_findings.append(Finding(

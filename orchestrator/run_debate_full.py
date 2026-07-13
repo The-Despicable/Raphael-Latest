@@ -1,4 +1,6 @@
 import asyncio, sys, os, json
+from config.paths import get_base_dir
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from orchestrator.providers import call_model, call_parallel
 
@@ -60,7 +62,7 @@ Propose specific, actionable patterns/code to add to close these gaps. For each 
     output = {"contributions": {}, "final": result["final"]}
     for mid, label in [("w12", "W12"), ("w13", "W13"), ("w480b", "W480B"), ("minimaxm3", "MiniMax-M3")]:
         output["contributions"][label] = result["contributions"].get(mid, "N/A")
-    with open("/home/yaser/Ultimate skill/raphael-2.0/orchestrator/debate_output.json", "w") as f:
+    with open(str(get_base_dir() / "orchestrator" / "debate_output.json"), "w") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
     print("Saved to debate_output.json")
     print(f"W12: {len(output['contributions']['W12'])} chars")

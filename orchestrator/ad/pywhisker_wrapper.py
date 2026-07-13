@@ -1,4 +1,4 @@
-import re, logging
+import re, logging, shlex
 
 from orchestrator.kali_tools_client import kali
 
@@ -10,10 +10,10 @@ class PywhiskerWrapper:
                                  hash: str = "", domain: str = "",
                                  dc_ip: str = "", target_user: str = "",
                                  timeout: int = 120) -> dict:
-        args = f"-d {domain} -u {username}"
-        args += f" -p {password}" if password else f" -H {hash}"
-        args += f" --target {target_user or target}"
-        args += f" --dc-ip {dc_ip or target}"
+        args = f"-d {shlex.quote(domain)} -u {shlex.quote(username)}"
+        args += f" -p {shlex.quote(password)}" if password else f" -H {shlex.quote(hash)}"
+        args += f" --target {shlex.quote(target_user or target)}"
+        args += f" --dc-ip {shlex.quote(dc_ip or target)}"
         args += " --action add"
         result = await kali.run("pywhisker", args, timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
@@ -28,10 +28,10 @@ class PywhiskerWrapper:
                                    hash: str = "", domain: str = "",
                                    dc_ip: str = "", target_user: str = "",
                                    timeout: int = 120) -> dict:
-        args = f"-d {domain} -u {username}"
-        args += f" -p {password}" if password else f" -H {hash}"
-        args += f" --target {target_user or target}"
-        args += f" --dc-ip {dc_ip or target}"
+        args = f"-d {shlex.quote(domain)} -u {shlex.quote(username)}"
+        args += f" -p {shlex.quote(password)}" if password else f" -H {shlex.quote(hash)}"
+        args += f" --target {shlex.quote(target_user or target)}"
+        args += f" --dc-ip {shlex.quote(dc_ip or target)}"
         args += " --action list"
         result = await kali.run("pywhisker", args, timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
@@ -47,9 +47,9 @@ class BloodyadWrapper:
     async def shadow_creds(self, target: str, username: str, password: str = "",
                             hash: str = "", domain: str = "",
                             target_user: str = "", timeout: int = 120) -> dict:
-        args = f"--dc-ip {target} --target {target_user or target}"
-        args += f" -u {username}"
-        args += f" -p {password}" if password else f" -H {hash}"
+        args = f"--dc-ip {shlex.quote(target)} --target {shlex.quote(target_user or target)}"
+        args += f" -u {shlex.quote(username)}"
+        args += f" -p {shlex.quote(password)}" if password else f" -H {shlex.quote(hash)}"
         if domain:
             args += f" -d {domain}"
         args += " shadowcreds"
@@ -79,11 +79,11 @@ class CoercerWrapper:
                       username: str = "", password: str = "",
                       hash: str = "", domain: str = "",
                       timeout: int = 120) -> dict:
-        args = f"coerce -t {target} -l {listener}"
+        args = f"coerce -t {shlex.quote(target)} -l {shlex.quote(listener)}"
         if username:
-            args += f" -u {username}"
+            args += f" -u {shlex.quote(username)}"
         if password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         if hash:
             args += f" -H {hash}"
         if domain:
@@ -100,11 +100,11 @@ class CoercerWrapper:
 class LsassyWrapper:
     async def dump(self, target: str, username: str = "", password: str = "",
                     hash: str = "", timeout: int = 120) -> dict:
-        args = f"{target}"
+        args = f"{shlex.quote(target)}"
         if username:
-            args += f" -u {username}"
+            args += f" -u {shlex.quote(username)}"
         if password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         if hash:
             args += f" -H {hash}"
         result = await kali.run("lsassy", args, timeout=timeout)

@@ -85,7 +85,7 @@ Analyze:
 4. What alternative approach should be tried if the fix fails?
 
 Output a concise, actionable postmortem."""
-    rca = await _call("nemotron-super", rca_prompt, temperature=0.4, timeout=120)
+    rca = await _call("oc-deepseek-free", rca_prompt, temperature=0.4, timeout=120)
 
     # Phase 4: Refined plan incorporating failure knowledge
     refine_prompt = f"""Based on this postmortem, generate a corrected execution plan.
@@ -98,7 +98,7 @@ Root cause analysis:
 Produce a revised numbered plan (3-6 steps) that avoids the failure.
 Include specific tool flags, alternative ports, or fallback methods.
 Output only the revised plan."""
-    refined = await _call("mistral-large", refine_prompt, temperature=0.5, timeout=120)
+    refined = await _call("oc-deepseek-free", refine_prompt, temperature=0.5, timeout=120)
 
     # Save postmortem for future reference
     os.makedirs(OUTPUT_DIR, exist_ok=True)

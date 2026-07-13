@@ -110,27 +110,27 @@ async def spray(creds: list[dict], targets: list[str],
                     if protocol == "smb":
                         if cred.get("hash"):
                             result = await kali.run("netexec",
-                                f"smb {host} -u '{cred['user']}' -H '{cred['hash']}' --shares", timeout=60)
+                                f"smb {shlex.quote(host)} -u {shlex.quote(cred['user'])} -H {shlex.quote(cred['hash'])} --shares", timeout=60)
                         else:
                             result = await kali.run("netexec",
-                                f"smb {host} -u '{cred['user']}' -p '{cred['password']}' --shares", timeout=60)
+                                f"smb {shlex.quote(host)} -u {shlex.quote(cred['user'])} -p {shlex.quote(cred['password'])} --shares", timeout=60)
                         valid = (result.get("returncode") == 0 and
                                  "[+]" in (result.get("stdout", "") or result.get("output", "")))
 
                     elif protocol == "winrm":
                         if cred.get("hash"):
                             result = await kali.run("netexec",
-                                f"winrm {host} -u '{cred['user']}' -H '{cred['hash']}'", timeout=60)
+                                f"winrm {shlex.quote(host)} -u {shlex.quote(cred['user'])} -H {shlex.quote(cred['hash'])}", timeout=60)
                         else:
                             result = await kali.run("netexec",
-                                f"winrm {host} -u '{cred['user']}' -p '{cred['password']}'", timeout=60)
+                                f"winrm {shlex.quote(host)} -u {shlex.quote(cred['user'])} -p {shlex.quote(cred['password'])}", timeout=60)
                         valid = (result.get("returncode") == 0 and
                                  "[+]" in (result.get("stdout", "") or result.get("output", "")))
 
                     elif protocol == "ssh":
                         if cred.get("password"):
                             result = await kali.run("netexec",
-                                f"ssh {host} -u '{cred['user']}' -p '{cred['password']}'", timeout=60)
+                                f"ssh {shlex.quote(host)} -u {shlex.quote(cred['user'])} -p {shlex.quote(cred['password'])}", timeout=60)
                             valid = (result.get("returncode") == 0 and
                                      "[+]" in (result.get("stdout", "") or result.get("output", "")))
                         else:

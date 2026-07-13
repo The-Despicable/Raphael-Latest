@@ -2,6 +2,7 @@
 """Analyze Claude Code patterns for Raphael applicability using minimax-m3."""
 
 import asyncio, json, httpx, sys, os
+from config.paths import get_base_dir
 
 OLLAMA_URL = "http://localhost:11434/v1/chat/completions"
 MODEL = "minimax-m3:cloud"
@@ -82,7 +83,8 @@ Be brief and practical. Focus on raphael-2.0/orchestrator/ files."""
     
     # Save results
     output = {"round1": r1, "round2": r2, "model": MODEL}
-    outpath = "/home/yaser/Ultimate skill/raphael-2.0/orchestrator/claude_analysis_result.json"
+    outpath = get_base_dir() / "orchestrator" / "claude_analysis_result.json"
+    outpath.parent.mkdir(parents=True, exist_ok=True)
     with open(outpath, "w") as f:
         json.dump(output, f, indent=2)
     print(f"\nSaved to {outpath}")

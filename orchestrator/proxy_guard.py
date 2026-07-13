@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os, sys, socket, subprocess, threading, time, random, json, logging, hashlib, ipaddress
+from urllib.parse import urlparse
 from datetime import datetime
 from typing import Optional
 from functools import wraps
@@ -37,6 +38,19 @@ LOCALHOST_NETS = [
 ]
 LOCALHOST_NAMES = {"localhost", "127.0.0.1", "::1", "0.0.0.0", "127.0.1.1"}
 
+try:
+    from orchestrator.egress.router import EgressRouter
+    _egress_router = EgressRouter(strategy=os.getenv("EGRESS_STRATEGY", "auto"))
+except ImportError:
+    _egress_router = None
+
+LOCALHOST_NETS = [
+    ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("10.0.0.0/8"), ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+]
+LOCALHOST_NAMES = {"localhost", "127.0.0.1", "::1", "0.0.0.0", "127.0.1.1"}
+
 def _is_localhost_target(target: str) -> bool:
     parsed = urlparse(target if "://" in target else f"http://{target}")
     host = parsed.hostname or target
@@ -52,7 +66,7 @@ def _is_localhost_target(target: str) -> bool:
             if any(ipaddress.ip_address(ip_str) in net for net in LOCALHOST_NETS):
                 return True
     except Exception:
-        pass
+        logger.debug("Non-critical error", exc_info=True)
     return False
 
 class ProxyError(Exception):
@@ -128,6 +142,28 @@ class ProxyGuard:
         if self._session is None:
             self._session = self._build_session()
         return self._session
+
+    def _delegate_to_router(self, method, url, **kwargs):
+        if not _egress_router:
+            return None
+        target = urlparse(url).hostname
+        kw = _egress_router.build_requests_kwargs(target)
+        kw.update(kwargs)
+        kw.setdefault("timeout", 30)
+        import requests
+        logger.debug(f"  → [{_egress_router.status()['strategy']}] {method} {url}")
+        return requests.request(method, url, **kw)
+
+    def set_egress_strategy(self, strategy_name: str):
+        global _egress_router
+        if _egress_router:
+            _egress_router = EgressRouter(strategy=strategy_name)
+            logger.info(f"  Egress strategy set to: {strategy_name}")
+
+    def rotate_egress(self):
+        if _egress_router:
+            return _egress_router.rotate_strategy()
+        return None
 
     def request(self, method: str, url: str, **kwargs) -> "requests.Response":
         if self._aborted:
@@ -251,7 +287,7 @@ class ProxyGuard:
         except FileNotFoundError:
             pass
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return False
 
     def _check_protonvpn(self, silent=False) -> bool:

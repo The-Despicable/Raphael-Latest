@@ -110,7 +110,7 @@ class CaidoProxy:
                 if result:
                     return list(result)[:limit]
             except Exception:
-                pass
+                logger.debug("Non-critical error", exc_info=True)
         if sandbox and self._access_token:
             fields = "id,host,method,path,port,isTls,length" if not full else "id,host,method,path,query,port,isTls,sni,length"
             q = json.dumps({
@@ -126,5 +126,5 @@ class CaidoProxy:
                 try:
                     return json.loads(result["stdout"]).get("data", {}).get("requests", {}).get("edges", [])
                 except Exception:
-                    pass
+                    logger.debug("Non-critical error", exc_info=True)
         return []

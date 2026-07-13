@@ -1,4 +1,5 @@
 import re
+import shlex
 
 from orchestrator.kali_tools_client import kali
 
@@ -13,13 +14,13 @@ class HydraWrapper:
         if userlist:
             args += f" -L {userlist}"
         elif username:
-            args += f" -l {username}"
+            args += f" -l {shlex.quote(username)}"
         if passlist:
             args += f" -P {passlist}"
         elif password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         port_arg = f" -s {port}" if port else ""
-        args += f" {ip} {port_arg} {service}"
+        args += f" {shlex.quote(ip)} {port_arg} {shlex.quote(service)}"
         result = await kali.run("hydra", args, timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         creds = re.findall(r'login:\s*(\S+)\s+password:\s*(\S+)', stdout, re.IGNORECASE)
@@ -39,7 +40,7 @@ class HydraWrapper:
             args += f" -L {userlist}"
         if passlist:
             args += f" -P {passlist}"
-        args += f" {url} http-post-form \"{form_data}:{failure_str}\""
+        args += f" {shlex.quote(url)} http-post-form {shlex.quote(form_data + ':' + failure_str)}"
         result = await kali.run("hydra", args, timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         creds = re.findall(r'login:\s*(\S+)\s+password:\s*(\S+)', stdout, re.IGNORECASE)

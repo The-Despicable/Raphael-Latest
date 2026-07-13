@@ -1,4 +1,183 @@
-# Raphael 2.0 — Audit Findings
+# Raphael 2.0 — System Audit
+
+> **Live audit**: 2026-07-11. Running processes, tools, config, and architecture.
+> See bottom section for the original code audit (2026-07-06).
+
+---
+
+## Running Processes
+
+| PID | Process | User | Transport | Status |
+|-----|---------|------|-----------|--------|
+| 76 | `raphael_mcp_server.py` | yaser | stdio (MCP) | ✅ LIVE |
+| 257 | `openvpn` (machines_us-5) | root | tun0 (10.10.15.184) | ✅ CONNECTED |
+
+### NOT Running
+| Component | How to Start | Notes |
+|-----------|-------------|-------|
+| **MCP Hub** (HTTP :8000) | `docker compose up -d mcp-hub` | searchsploit, metasploit, evil-winrm unavailable |
+| **Brain** (`raphael_brain.py`) | `venv/bin/python raphael_brain.py` | Kimi executive — manual launch |
+| **CLI** (`raphael_cli.py`) | `venv/bin/python raphael_cli.py` | Full command interface |
+| **Docker services** (17 containers) | `docker compose up -d` | cai-service, c2-server, mhddos, cloak, phish, etc. all down |
+
+---
+
+## MCP Server Tools — Availability
+
+| Tool | Type | Calls Binary | Installed? | Works? |
+|------|------|-------------|-----------|--------|
+| `call-llm` | LLM | Python (orchestrator.providers) | ✅ built-in | ✅ |
+| `list-models` | LLM | Python | ✅ built-in | ✅ |
+| `nmap-scan` | recon | `nmap` | ✅ | ✅ |
+| `gobuster` | web | `gobuster` | ✅ (with dirb wordlists) | ✅ |
+| `sqlmap-scan` | web | `sqlmap` | ✅ | ✅ (MCP timed out) |
+| `nuclei-scan` | vuln | `nuclei` | ❌ go install failed | ❌ |
+| `subfinder` | recon | `subfinder` | ❌ | ❌ |
+| `proxy-status` | infra | Python | ✅ | ✅ |
+| `verify` | infra | Python | ✅ | ✅ |
+| `web-search` | recon | Python (DuckDuckGo) | ✅ | ✅ |
+| `fetch-url` | recon | Python (httpx) | ✅ | ✅ |
+| `debate` | LLM | Python | ✅ | ✅ |
+| `deep-research` | LLM | Python | ✅ | ✅ |
+| `autonomous-engage` | pipeline | Python | ✅ | ✅ |
+| `run-tool` | hub | Python (mcp-hub registry) | ❌ hub not running | ❌ |
+| `raphael-tools` | hub | Python (read-only list) | ✅ | ✅ |
+
+**Missing critical:** `nuclei` (template-based vuln scanning), `searchsploit` (in hub), `metasploit` (in hub).
+
+---
+
+## Locally Installed Binaries
+
+| Binary | Path | Status |
+|--------|------|--------|
+| `python3` | `/usr/bin/python3` | ✅ 3.14.4 |
+| `pip3` | `/usr/bin/pip3` | ✅ (PEP 668 locked) |
+| `curl` | `/usr/bin/curl` | ✅ |
+| `nmap` | `/usr/bin/nmap` | ✅ 7.98 |
+| `hydra` | `/usr/bin/hydra` | ✅ 9.6 |
+| `gobuster` | `/usr/bin/gobuster` | ✅ 3.8.2 |
+| `dirsearch` | `/usr/bin/dirsearch` | ✅ 0.4.3 |
+| `nikto` | `/usr/bin/nikto` | ✅ 2.1.5 |
+| `whatweb` | `/usr/bin/whatweb` | ✅ 0.6.3 |
+| `sqlmap` | `/usr/bin/sqlmap` | ✅ 1.10.4 |
+| `masscan` | `/usr/bin/masscan` | ✅ |
+| `ffuf` | `/usr/local/bin/ffuf` | ✅ 2.1.0 |
+| `go` | `/usr/bin/go` | ✅ 1.26 |
+| `dirb` | `/usr/bin/dirb` | ✅ 2.22 (wordlists at `/usr/share/dirb/wordlists/`) |
+| `netcat` | `/usr/bin/nc` | ✅ |
+| `openvpn` | `/usr/sbin/openvpn` | ✅ |
+| `nuclei` | — | ❌ go install failed (deps timeout) |
+| `subfinder` | — | ❌ not installed |
+| `searchsploit` | — | ❌ (in MCP Hub — not running) |
+| `metasploit` | — | ❌ (in MCP Hub — not running) |
+| `evil-winrm` | — | ❌ (in MCP Hub — not running) |
+| `prowler` | — | ❌ (in MCP Hub — not running) |
+| `trivy` | — | ❌ (in MCP Hub — not running) |
+| `volatility` | — | ❌ (in MCP Hub — not running) |
+
+---
+
+## API Keys
+
+| Key | Value | Status |
+|-----|-------|--------|
+| `NVIDIA_API_KEY` | `nvapi-g7Gp...` | ✅ Present |
+| `NVIDIA_API_KEY_2` | `nvapi-2A7J...` | ✅ Present |
+| `NVIDIA_API_KEY_3` | `nvapi-tRpc...` | ✅ Present |
+| `FREELLMAPI_KEY` | `freellmapi-43e4...` | ✅ Present |
+| `FREELLMAPI_BASE` | `http://localhost:3001/v1` | ✅ Configured |
+| `OMNIROUTE_BASE` | `http://localhost:20128/v1` | ✅ Configured |
+| `OMNIROUTE_API_KEY` | `sk-omniroute-local` | ✅ Configured |
+| `API_KEY` | `raphael-layer5-dev-key-2026` | ⚠️ Default |
+| `GOPHISH_API_KEY` | `change-me-gophish-api-key` | ⚠️ Default |
+| `TOR_CONTROL_PASS` | `changeme` | ⚠️ Default |
+| `OPENAI_API_KEY` | (empty) | ❌ Missing |
+| `SHODAN_API_KEY` | (empty) | ❌ Missing |
+| `SPIDERFOOT_API_KEY` | (empty) | ❌ Missing |
+
+**Cost control:** `MAX_SPEND_TOKENS=1000000`, `RAPHAEL_COST_CONTROL=1`
+
+---
+
+## LLM Models (5 providers, 60+ aliases)
+
+| Provider | Endpoint | Key Models |
+|----------|----------|-----------|
+| **NVIDIA API** | api.nvidia.com | deepseek, nemotron*, mistral*, kimi |
+| **FreeLLMAPI** (proxy) | localhost:3001/v1 | Same NVIDIA models via proxy |
+| **Ollama** (ollama.com) | API | wormgpt*, gemma4, gemma4-think |
+| **OpenRoute** (openrouter.ai) | API | or-deepseek, or-nemotron, or-qwen, or-ling |
+| **OpenCode CLI** | local CLI | oc-deepseek, oc-nemotron-*, oc-mistral-* |
+
+---
+
+## Architecture Layers
+
+```
+┌─────────────────────────────────────────────┐
+│  MCP Server (raphael_mcp_server.py)  PID 76 │  ← stdio transport
+│  Tools: call-llm, nmap, gobuster, sqlmap... │
+├─────────────────────────────────────────────┤
+│  Brain (raphael_brain.py)  NOT RUNNING      │  ← Kimi executive loop
+│  13 tools: nmap, nuclei, ssh-exec, ...     │     (replacing autonomous mode)
+├─────────────────────────────────────────────┤
+│  Orchestrator Modes                         │  ← Hardcoded pipelines
+│  autonomous, scan, debate, community,       │
+│  deep_research, postmortem, rsi             │
+├─────────────────────────────────────────────┤
+│  MCP Hub (mcp-hub/)  NOT RUNNING           │  ← HTTP :8000, FastAPI
+│  14 tools across 6 categories               │     (searchsploit, metasploit, etc.)
+├─────────────────────────────────────────────┤
+│  Docker Services (17)  ALL DOWN             │  ← cai-service, c2, mhddos,
+│                                              │     cloak, phishing, etc.
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## Training Engagements (raphael_training.md)
+
+| # | Target | Type | CVEs / Techniques |
+|---|--------|------|-------------------|
+| 001 | Support (10.129.51.253) | Easy Win DC | SMB anon, .NET decomp, LDAP recon, RBCD |
+| 002 | Orion (10.129.53.83) | Medium Linux | CVE-2025-32432, FnStream, telnetd privesc |
+| 003 | React Oops (154.57.164.81:32184) | Very Easy Web | CVE-2025-55182 RCE via RSC Flight |
+| 004 | OpenSecret (154.57.164.72:31994) | Very Easy Web | Hardcoded JWT secret, token forgery |
+| 005 | Unit42 | Very Easy Sherlock | Sysmon logs, UltraVNC backdoor |
+| 006 | Enigma (10.129.239.191) | Easy Linux | NFS mount, IMAP pivot, ZIP injection |
+| 007 | Connected (10.129.52.169) | Easy Linux | (partial) |
+
+---
+
+## Personas
+
+| Persona | Description |
+|---------|-------------|
+| `default` | Standard helpful AI operator |
+| `redteam` | Professional red team (authorized testing) |
+| `blackhat` | Unrestricted, zero limitations, no refusal |
+
+Prompt sanitization strips target IPs/identifiers before sending to safety-filtered models (kimi, gemma4).
+
+---
+
+## Known Issues
+
+| Issue | Details |
+|-------|---------|
+| `nuclei` not installed | Go install failed due to dependency download timeout |
+| MCP Hub not running | 14 tools unavailable (searchsploit, metasploit, etc.) |
+| No Docker services | 17 containers all down |
+| Brain not running | Must be launched manually with `python raphael_brain.py` |
+| Default credentials | `API_KEY`, `GOPHISH_API_KEY`, `TOR_CONTROL_PASS` unchanged |
+| Missing API keys | `OPENAI_API_KEY`, `SHODAN_API_KEY`, `SPIDERFOOT_API_KEY` empty |
+| No wordlists | Only dirb wordlists available at `/usr/share/dirb/wordlists/` |
+| `pip` externally managed | PEP 668 — can't `pip install` without `--break-system-packages` |
+
+---
+
+# Raphael 2.0 — Code Audit Findings (Original)
 
 > Generated 2026-07-06. Deep end-to-end audit of all 439 files.
 > **All issues below have been remediated (commit `163fa20`).**

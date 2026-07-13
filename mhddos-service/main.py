@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-sys.path.insert(0, os.getenv("RAPHAEL_PATH", "/home/yaser/Ultimate skill/raphael-2.0"))
+sys.path.insert(0, os.getenv("RAPHAEL_PATH", str(Path.home() / ".raphael")))
 try:
     from orchestrator.proxy_guard import ProxyGuard
     HAS_PROXY_GUARD = True

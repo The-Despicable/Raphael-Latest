@@ -102,7 +102,7 @@ class DockerSandbox:
             if port_info:
                 return f"http://{port_info[0]['HostIp']}:{port_info[0]['HostPort']}"
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return f"http://127.0.0.1:{port}"
 
     def stop(self):
@@ -110,11 +110,11 @@ class DockerSandbox:
             try:
                 self._container.kill()
             except Exception:
-                pass
+                logger.debug("Non-critical error", exc_info=True)
             try:
                 self._container.remove(force=True)
             except Exception:
-                pass
+                logger.debug("Non-critical error", exc_info=True)
             self._container = None
             logger.info("Sandbox container stopped and removed")
 

@@ -1,37 +1,51 @@
 from ..providers import call_model
 
-RSI_TEAM = {
-    "critical":  "nemotron-super",   # rigorous logical analysis, catch flaws
-    "deep_dive": "mistral-large",     # technical depth, step-by-step verification
-    "synthesis": "kimi",              # integrate findings, final proof
+DEFAULT_TEAM = {
+    "critical":  "oc-deepseek-free",
+    "deep_dive": "oc-hy3-free",
+    "synthesis": "oc-nemotron-ultra-free",
 }
 
-async def handle(question, rounds=2, temperature=0.5):
-    """
-    RSI (Research, Search, Integrate) mode.
-    nemotron-super (critical analysis) + mistral-large (deep dive) + kimi (synthesis).
-    """
+async def handle(question, rounds=2, temperature=0.5, rounds_limit=5, team_models=None):
+    if team_models is None:
+        team_models = dict(DEFAULT_TEAM)
+    if rounds > rounds_limit:
+        rounds = rounds_limit
+
     ctx = f"[RSI] Research, Search, Integrate\nTask: {question}\n\n"
     ctx += "Phase 1 (Research): Analyze the problem rigorously."
     ctx += "\nPhase 2 (Search): Verify assumptions, check edge cases."
     ctx += "\nPhase 3 (Integrate): Produce a complete, proven answer."
 
     research = {}
-    for role, alias in RSI_TEAM.items():
+    for role, alias in team_models.items():
         research[role] = await call_model(
             alias,
             [{"role": "user", "content": f"[{role.upper()}]\n{ctx}"}],
             max_tokens=4096, temperature=temperature
         )
 
-    ctx2 = f"[RSI] Round 2 — Critique & Refine\nTask: {question}\n\n"
+    for r in range(2, rounds + 1):
+        ctx2 = f"[RSI] Round {r}/{rounds} — Critique & Refine\nTask: {question}\n\n"
+        for role, text in research.items():
+            ctx2 += f"\n{role.upper()} said:\n{text}\n"
+        ctx2 += "\nApply deeper scrutiny. Identify contradictions, edge cases, and missing proof."
+
+        for role, alias in team_models.items():
+            research[role] = await call_model(
+                alias,
+                [{"role": "user", "content": ctx2}],
+                max_tokens=4096, temperature=temperature * 0.9
+            )
+
+    ctx2 = f"[RSI] Final Synthesis\nTask: {question}\n\n"
     for role, text in research.items():
         ctx2 += f"\n{role.upper()} said:\n{text}\n"
 
     unified = await call_model(
-        RSI_TEAM["synthesis"],
-        [{"role": "user", "content": ctx2 + "\nSynthesize the three analyses into ONE complete, rigorous solution with proof."}],
+        team_models["synthesis"],
+        [{"role": "user", "content": ctx2 + "\nSynthesize the analyses into ONE complete, rigorous solution with proof."}],
         max_tokens=4096, temperature=0.3
     )
 
-    return {"research": research, "unified_plan": unified}
+    return {"research": research, "unified_plan": unified, "rounds_used": rounds, "rounds_limit": rounds_limit}

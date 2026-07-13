@@ -108,7 +108,7 @@ class ScanAgent(BaseAgent):
                     evidence="\n".join(lines),
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_vuln_scan(self, target: str, ports=None) -> list[Finding]:
@@ -126,7 +126,7 @@ class ScanAgent(BaseAgent):
                     evidence=json.dumps(findings_list[:5], indent=2),
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_dir_scan(self, target: str) -> list[Finding]:
@@ -143,7 +143,7 @@ class ScanAgent(BaseAgent):
                     evidence=str(result["paths"][:30]),
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_ssl_scan(self, target: str) -> list[Finding]:
@@ -161,5 +161,5 @@ class ScanAgent(BaseAgent):
                     evidence=str(lines[:10]),
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []

@@ -540,14 +540,16 @@ async def _call_model_raw(model: str, messages: list, max_tokens=4096, temperatu
             raise Exception(f"API error: {json.dumps(body)}")
         msg = body["choices"][0]["message"]
         
-        # Handle tool calls
-        if msg.get("tool_calls"):
+        # Multi-turn tool calling: keep looping until the model produces content
+        max_tool_turns = 5
+        tool_turn = 0
+        while msg.get("tool_calls") and tool_turn < max_tool_turns:
+            tool_turn += 1
             for tool_call in msg["tool_calls"]:
                 func_name = tool_call["function"]["name"]
                 func_args = json.loads(tool_call["function"]["arguments"])
                 result = await execute_tool_call(func_name, func_args)
                 
-                # Add tool result to messages and call again
                 msgs.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": msg["tool_calls"]})
                 msgs.append({
                     "role": "tool",
@@ -555,14 +557,14 @@ async def _call_model_raw(model: str, messages: list, max_tokens=4096, temperatu
                     "name": func_name,
                     "content": json.dumps(result)
                 })
-                
-                # Call model again with tool result
-                payload["messages"] = msgs
-                resp = await cl.post(_chat_url(provider), json=payload, headers=_headers(provider))
-                body = resp.json()
-                if "choices" not in body:
-                    raise Exception(f"API error: {json.dumps(body)}")
-                msg = body["choices"][0]["message"]
+            
+            # Call model again with tool result(s)
+            payload["messages"] = msgs
+            resp = await cl.post(_chat_url(provider), json=payload, headers=_headers(provider))
+            body = resp.json()
+            if "choices" not in body:
+                raise Exception(f"API error: {json.dumps(body)}")
+            msg = body["choices"][0]["message"]
         
         content = msg.get("content") or msg.get("reasoning") or msg.get("reasoning_content") or ""
         total_tokens = (body.get("usage", {}) or {}).get("total_tokens", 0) or 0

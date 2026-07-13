@@ -1,4 +1,4 @@
-import os, json, logging
+import os, json, logging, shlex
 from typing import Optional
 from orchestrator.kali_tools_client import kali
 
@@ -63,7 +63,7 @@ class ADToolkit:
         if hash:
             args.append(f"-hashes")
             args.append(hash)
-        args.append(f"{auth}:{password}@{target}" if password else f"{auth}@{target}")
+        args.append(f"{shlex.quote(auth)}:{shlex.quote(password)}@{shlex.quote(target)}" if password else f"{shlex.quote(auth)}@{shlex.quote(target)}")
         return await self._run_impacket("wmiexec", args, proxy_env=proxy_env)
 
     async def psexec(self, target: str, username: str, domain: str = "",
@@ -74,7 +74,7 @@ class ADToolkit:
         if hash:
             args.append(f"-hashes")
             args.append(hash)
-        args.append(f"{auth}:{password}@{target}" if password else f"{auth}@{target}")
+        args.append(f"{shlex.quote(auth)}:{shlex.quote(password)}@{shlex.quote(target)}" if password else f"{shlex.quote(auth)}@{shlex.quote(target)}")
         return await self._run_impacket("psexec", args, proxy_env=proxy_env)
 
     async def get_np_users(self, target: str, domain: str = "",
@@ -88,7 +88,7 @@ class ADToolkit:
     async def get_user_spns(self, target: str, domain: str = "",
                             username: str = "", password: str = "",
                             proxy_env: Optional[dict] = None) -> dict:
-        args = [f"{domain}/{username}:{password}" if domain and username and password else target]
+        args = [f"{shlex.quote(domain)}/{shlex.quote(username)}:{shlex.quote(password)}" if domain and username and password else shlex.quote(target)]
         return await self._run_impacket("GetUserSPNs", args, proxy_env=proxy_env)
 
     async def ticketer(self, target: str, domain: str, user: str,

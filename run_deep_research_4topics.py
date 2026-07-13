@@ -3,6 +3,7 @@
 import asyncio, json, sys, time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from config.paths import get_base_dir
 
 from orchestrator.modes.deep_research import handle as deep_research
 from orchestrator.providers import call_model
@@ -57,7 +58,7 @@ async def main():
         "individual": results,
         "timestamp": time.time(),
     }
-    out_path = Path("/home/yaser/Ultimate skill/raphael-2.0/deep_research_4topics_raw.json")
+    out_path = get_base_dir() / "deep_research_4topics_raw.json"
     out_path.write_text(json.dumps(report, indent=2, default=str))
     print(f"\nRaw results saved to {out_path}")
 
@@ -146,7 +147,7 @@ Output in markdown."""
 
 *Generated {time.ctime()} | {len(results)} topics, {sum(r.get('elapsed', 0) for r in results):.0f}s total research time*"""
 
-    final_path = Path("/home/yaser/Ultimate skill/raphael-2.0/deep_research_4topics_final.md")
+    final_path = get_base_dir() / "deep_research_4topics_final.md"
     final_path.write_text(final_report)
     print(f"\nFinal report saved to {final_path}")
 

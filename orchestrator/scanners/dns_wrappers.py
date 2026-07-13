@@ -1,12 +1,13 @@
 import re
+import shlex
 
 from orchestrator.kali_tools_client import kali
 
 
 class DNSWrapper:
     async def zone_transfer(self, domain: str, nameserver: str = "", timeout: int = 60) -> dict:
-        ns_arg = f"@{nameserver}" if nameserver else ""
-        result = await kali.run("dig", f"axfr {domain} {ns_arg}", timeout=timeout)
+        ns_arg = f"@{shlex.quote(nameserver)}" if nameserver else ""
+        result = await kali.run("dig", f"axfr {shlex.quote(domain)} {ns_arg}", timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         records = [l.strip() for l in stdout.split("\n") if l.strip() and not l.startswith(";") and "IN" in l]
         return {"success": len(records) > 0, "records": records[:50], "count": len(records), "raw": stdout[:3000]}
@@ -15,7 +16,7 @@ class DNSWrapper:
         types = ["_ldap._tcp", "_kerberos._tcp", "_kerberos._udp", "_gc._tcp", "_kpasswd._tcp"]
         all_records = []
         for t in types:
-            result = await kali.run("dig", f"{t}.{domain} SRV", timeout=timeout)
+            result = await kali.run("dig", f"{shlex.quote(t)}.{shlex.quote(domain)} SRV", timeout=timeout)
             stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
             for line in stdout.split("\n"):
                 if "SRV" in line and "IN" in line:
@@ -25,7 +26,7 @@ class DNSWrapper:
         return {"success": len(all_records) > 0, "records": all_records, "count": len(all_records)}
 
     async def ns_lookup(self, domain: str, timeout: int = 60) -> dict:
-        result = await kali.run("nslookup", f"-type=any {domain}", timeout=timeout)
+        result = await kali.run("nslookup", f"-type=any {shlex.quote(domain)}", timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         lines = [l.strip() for l in stdout.split("\n") if l.strip()]
         return {"success": True, "lines": lines[:30], "raw": stdout[:3000]}
@@ -33,7 +34,7 @@ class DNSWrapper:
 
 class WhoIsWrapper:
     async def lookup(self, domain: str, timeout: int = 60) -> dict:
-        result = await kali.run("whois", domain, timeout=timeout)
+        result = await kali.run("whois", shlex.quote(domain), timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         lines = [l.strip() for l in stdout.split("\n") if l.strip() and not l.startswith("#")]
         registrant = [l for l in lines if "Registrant" in l or "OrgName" in l or "org-name" in l]
@@ -50,10 +51,10 @@ class WhoIsWrapper:
 class LdapDomainDumpWrapper:
     async def dump(self, target: str, username: str = "", password: str = "",
                    domain: str = "", timeout: int = 120) -> dict:
-        args = f"-u {domain}\\{username}" if domain and username else f"-u {username}" if username else ""
+        args = f"-u {shlex.quote(domain)}\\{shlex.quote(username)}" if domain and username else f"-u {shlex.quote(username)}" if username else ""
         if password:
-            args += f" -p {password}"
-        args += f" {target}"
+            args += f" -p {shlex.quote(password)}"
+        args += f" {shlex.quote(target)}"
         result = await kali.run("ldapdomaindump", args, timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         files = re.findall(r'(domain_users\.json|domain_computers\.json|domain_groups\.json|domain_trusts\.json)', stdout)

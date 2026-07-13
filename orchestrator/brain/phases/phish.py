@@ -1,3 +1,4 @@
+import asyncio
 import time
 import logging
 import os
@@ -41,7 +42,8 @@ async def run_phish(target: str, findings: list = None) -> PhaseResult:
 
     for method in methods:
         try:
-            result = pipeline.run(
+            result = await asyncio.to_thread(
+                pipeline.run,
                 method=method,
                 target_email=target_email,
                 target_url=f"http://{target}",

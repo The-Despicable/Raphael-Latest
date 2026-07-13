@@ -4,6 +4,7 @@ import asyncio, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from orchestrator.teams import analyze
+from config.paths import get_base_dir
 
 CORPUS_SUMMARY = """LLM Hallucination Research Corpus (15 sources from Red Hat article):
 
@@ -65,7 +66,7 @@ async def main():
     print("=" * 60)
     print(MY_ANALYSIS)
     
-    out_path = Path("/home/yaser/Ultimate skill/raphael-2.0/reasoning_team_analysis.json")
+    out_path = get_base_dir() / "reasoning_team_analysis.json"
     out_path.write_text(json.dumps({
         "reasoning_team": result,
         "my_analysis": MY_ANALYSIS,

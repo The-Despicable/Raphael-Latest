@@ -1,11 +1,12 @@
 import re
+import shlex
 
 from orchestrator.kali_tools_client import kali
 
 
 class NiktoWrapper:
     async def scan(self, url: str, timeout: int = 300) -> dict:
-        result = await kali.run("nikto", f"-h {url} -nointeractive -q", timeout=timeout)
+        result = await kali.run("nikto", f"-h {shlex.quote(url)} -nointeractive -q", timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         vulns = re.findall(r'\+ (.+)', stdout)
         return {"success": len(vulns) > 0, "vulnerabilities": vulns, "count": len(vulns), "raw": stdout[:5000]}
@@ -14,7 +15,7 @@ class NiktoWrapper:
 class WfuzzWrapper:
     async def fuzz(self, url: str, wordlist: str = "/usr/share/wordlists/dirb/common.txt",
                    timeout: int = 120) -> dict:
-        result = await kali.run("wfuzz", f"-w {wordlist} --hc 404 {url}", timeout=timeout)
+        result = await kali.run("wfuzz", f"-w {shlex.quote(wordlist)} --hc 404 {shlex.quote(url)}", timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         findings = re.findall(r'(\S+)\s+(\d+)\s+(\d+)', stdout)
         return {"success": len(findings) > 0, "findings": findings[:50], "count": len(findings), "raw": stdout[:3000]}
@@ -47,9 +48,9 @@ class KerberoastWrapper:
                     domain: str = "", timeout: int = 120) -> dict:
         args = f"-spn"
         if domain:
-            args += f" -d {domain}"
-        args += f" -u {username} -p {password}"
-        args += f" -dc-ip {target}"
+            args += f" -d {shlex.quote(domain)}"
+        args += f" -u {shlex.quote(username)} -p {shlex.quote(password)}"
+        args += f" -dc-ip {shlex.quote(target)}"
         result = await kali.run("kerberoast", args, timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         hashes = re.findall(r'\$krb5tgs\$[^\s]+', stdout)

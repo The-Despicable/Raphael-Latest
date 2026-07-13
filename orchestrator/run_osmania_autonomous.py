@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from config.paths import get_base_dir
 import asyncio, json, time, hashlib, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
@@ -225,12 +226,15 @@ async def main():
     results = await run_phases()
     
     # Save full JSON
-    with open("/home/yaser/Ultimate skill/raphael-2.0/orchestrator/osmania_autonomous_results.json", "w") as f:
+    orchestrator_dir = get_base_dir() / "orchestrator"
+    orchestrator_dir.mkdir(parents=True, exist_ok=True)
+    
+    with open(orchestrator_dir / "osmania_autonomous_results.json", "w") as f:
         json.dump({k: v for k, v in results.items() if k != "phases" or isinstance(v, dict)}, f, indent=2, default=str)
     
     # Save per-phase outputs
     for phase, data in results["phases"].items():
-        with open(f"/home/yaser/Ultimate skill/raphael-2.0/orchestrator/osmania_phase_{phase}.txt", "w") as f:
+        with open(orchestrator_dir / f"osmania_phase_{phase}.txt", "w") as f:
             f.write(f"Model: {data['model']}\nLatency: {data['latency']}s\nSuccess: {data['success']}\n\n{data['output']}")
     
     print("\n\n=== PHASE COMPLETE ===")

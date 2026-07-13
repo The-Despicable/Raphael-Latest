@@ -1,4 +1,5 @@
 import re
+import shlex
 
 from orchestrator.kali_tools_client import kali
 
@@ -10,7 +11,7 @@ class DonPapiWrapper:
         if username:
             args += f" -u {username}"
         if password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         if domain:
             args += f" --domain {domain}"
         result = await kali.run("donpapi", args, timeout=timeout)
@@ -33,7 +34,7 @@ class Krb5Wrapper:
                     timeout: int = 60) -> dict:
         import tempfile
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
-            f.write(f"echo '{password}' | kinit {username}@{domain}")
+            f.write(f"echo {shlex.quote(password)} | kinit {shlex.quote(username)}@{shlex.quote(domain)}")
             script = f.name
         result = await kali.run("bash", script, timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
@@ -51,7 +52,7 @@ class SocatWrapper:
                     protocol: str = "tcp", timeout: int = 300) -> dict:
         args = f"{protocol}-l:{listen_port},reuseaddr,fork {protocol}:{forward_host}:{forward_port}"
         loop = f"while true; do socat {args}; done &"
-        result = await kali.run("bash", f"-c '{loop}'", timeout=timeout)
+        result = await kali.run("bash", f"-c {shlex.quote(loop)}", timeout=timeout)
         stdout = (result.get("stdout") or "") + (result.get("stderr") or "")
         return {"success": True, "listener": f"{protocol}://0.0.0.0:{listen_port}", "forward": f"{forward_host}:{forward_port}"}
 

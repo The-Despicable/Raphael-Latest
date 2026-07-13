@@ -1,4 +1,5 @@
 import json, re, os
+import shlex
 from typing import Optional
 from orchestrator.kali_tools_client import kali
 
@@ -17,9 +18,9 @@ class CertipyWrapper:
         if user:
             args += f" -u {user}@{target.split('.')[0]}"
         if password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         if dc_ip:
-            args += f" -dc-ip {dc_ip}"
+            args += f" -dc-ip {shlex.quote(dc_ip)}"
 
         result = await kali.run_certipy(args, timeout=timeout)
         output = result.get("stdout", "") + result.get("stderr", "")
@@ -34,11 +35,11 @@ class CertipyWrapper:
     async def req(self, target: str, ca: str, template: str = "",
                   user: str = "", password: str = "", dc_ip: str = "",
                   timeout: int = 120) -> dict:
-        args = f"req -target {target} -ca {ca}"
+        args = f"req -target {shlex.quote(target)} -ca {shlex.quote(ca)}"
         if user:
-            args += f" -u {user}"
+            args += f" -u {shlex.quote(user)}"
         if password:
-            args += f" -p {password}"
+            args += f" -p {shlex.quote(password)}"
         if dc_ip:
             args += f" -dc-ip {dc_ip}"
         if template:

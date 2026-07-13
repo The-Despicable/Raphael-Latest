@@ -1,40 +1,49 @@
-import json, shutil
-from typing import Optional
-from ..proxy_guard import ProxyGuard
+import json, os, re
 
-KALI_TOOLS_URL = "http://kali-tools:3800"
+KALI_TOOLS_URL = os.getenv("KALI_TOOLS_URL", "http://localhost:3800")
+
+
+def _escape_header_value(val: str) -> str:
+    """Remove characters that would break args parsing in the kali-tools API."""
+    return re.sub(r"[^\w:/.\-@ ]", "", val).strip()
+
 
 class NucleiScanner:
-    def __init__(self, pg: ProxyGuard = None):
-        self.pg = pg
+    def __init__(self, default_templates: list = None):
+        self.default_templates = default_templates or ["/root/nuclei-templates/http/technologies/"]
 
     @property
     def available(self) -> bool:
         return True
 
-    def scan(self, target: str, templates: list = None,
-             severity: str = None, rate_limit: int = 50) -> dict:
-        args = f"-u {target} -json -silent -rate-limit {rate_limit}"
+    async def scan(self, target: str, templates: list = None,
+                   severity: str = None, rate_limit: int = 50,
+                   headers: dict = None) -> dict:
+        template_args = " ".join(f"-t {t}" for t in (templates or self.default_templates))
+        args = f"-u {target} -j -silent -rate-limit {rate_limit} {template_args}"
 
-        if templates:
-            for t in templates:
-                args += f" -t {t}"
+        if headers:
+            for key, val in headers.items():
+                safe_val = _escape_header_value(val)
+                args += f" -H {key}:{safe_val}"
+
         if severity:
             args += f" -severity {severity}"
 
-        if self.pg:
-            self.pg._enforce_timing()
-
         try:
             import httpx
-            resp = httpx.post(
-                f"{KALI_TOOLS_URL}/run",
-                params={"tool": "nuclei", "args": args, "timeout": 600},
-                timeout=610
-            )
+            async with httpx.AsyncClient(timeout=120) as client:
+                resp = await client.post(
+                    f"{KALI_TOOLS_URL}/run",
+                    params={"tool": "nuclei", "args": args, "timeout": 100},
+                )
             result = resp.json()
             if result.get("returncode") != 0:
-                return {"error": result.get("stderr", "nuclei failed"), "target": target}
+                stderr = result.get("stderr", "")
+                if "no results" in stderr.lower() or len(result.get("stdout", "")) > 0:
+                    pass
+                else:
+                    return {"error": stderr[:500], "target": target}
 
             findings = []
             for line in result["stdout"].strip().split("\n"):

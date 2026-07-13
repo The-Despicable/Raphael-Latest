@@ -135,7 +135,7 @@ class ReconAgent(BaseAgent):
                     evidence=str(result["registrant"]),
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_web_fingerprint(self, target: str) -> list[Finding]:
@@ -151,7 +151,7 @@ class ReconAgent(BaseAgent):
                     evidence=str(result),
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_subdomain_scan(self, target: str) -> list[Finding]:
@@ -167,7 +167,7 @@ class ReconAgent(BaseAgent):
                     evidence=str(result["subdomains"][:20]),
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_port_scan(self, target: str, ports: str = "1-1000") -> list[Finding]:
@@ -188,7 +188,7 @@ class ReconAgent(BaseAgent):
                     evidence=evidence,
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []
 
     async def _run_directory_scan(self, target: str) -> list[Finding]:
@@ -205,5 +205,5 @@ class ReconAgent(BaseAgent):
                     evidence=str(result["paths"][:30]),
                 )]
         except Exception:
-            pass
+            logger.debug("Non-critical error", exc_info=True)
         return []

@@ -42,7 +42,7 @@ class ScanPipeline:
 
         targets = [target]
         if not target.startswith(("http://", "https://")):
-            targets = [f"https://{target}", f"http://{target}"]
+            targets = [f"http://{target}", f"https://{target}"]
 
         sandbox_active = use_sandbox and self.sandbox and self.sandbox.running
         results["sandboxed"] = sandbox_active
@@ -76,17 +76,23 @@ class ScanPipeline:
 
         if not sandbox_active:
             for t in targets:
-                ww = self.whatweb.scan(t, aggression=1)
-                if ww.get("tech_count", 0) > 0:
-                    results["whatweb"] = ww
-                    results["summary"]["technologies"] = ww["tech_count"]
-                    break
+                try:
+                    ww = self.whatweb.scan(t, aggression=1)
+                    if ww.get("tech_count", 0) > 0:
+                        results["whatweb"] = ww
+                        results["summary"]["technologies"] = ww["tech_count"]
+                        break
+                except Exception:
+                    continue
             if not results["whatweb"]:
-                results["whatweb"] = self.whatweb.scan(targets[0], aggression=1)
-                results["summary"]["technologies"] = results["whatweb"].get("tech_count", 0)
+                try:
+                    results["whatweb"] = self.whatweb.scan(target, aggression=1)
+                    results["summary"]["technologies"] = results["whatweb"].get("tech_count", 0)
+                except Exception:
+                    results["whatweb"] = {"error": "all scan attempts failed"}
 
         if not sandbox_active:
-            nu = self.nuclei.scan(target, severity=nuclei_severity)
+            nu = await self.nuclei.scan(target, severity=nuclei_severity)
             results["nuclei"] = nu
             if "findings" in nu:
                 results["summary"]["vulnerabilities"] = nu["findings_count"]

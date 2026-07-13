@@ -15,10 +15,11 @@ FUTURE_UPGRADE = (Path(__file__).resolve().parent / "future_upgrade.md").read_te
 CRITIQUE_SYNTHESIS_PATH = Path(__file__).resolve().parent / "debate_future_upgrade.json"
 CRITIQUE_SYNTHESIS = "No prior critique available."
 if CRITIQUE_SYNTHESIS_PATH.exists():
-    try:
-        data = json.loads(CRITIQUE_SYNTHESIS_PATH.read_text())
-        CRITIQUE_SYNTHESIS = data.get("final_synthesis", CRITIQUE_SYNTHESIS)
-    except: pass
+        try:
+            data = json.loads(CRITIQUE_SYNTHESIS_PATH.read_text())
+            CRITIQUE_SYNTHESIS = data.get("final_synthesis", CRITIQUE_SYNTHESIS)
+        except Exception:
+            pass
 
 ROUND1_QUESTION = f"""We are evaluating whether to invest in two major upgrades for Raphael, an autonomous pentesting platform.
 

@@ -12,6 +12,7 @@ import hashlib
 import os
 import sys
 from datetime import datetime
+from config.paths import get_base_dir
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
@@ -315,7 +316,7 @@ Output your decision and reasoning. Be specific about targets, tools, and parame
         }
         
         # Save JSON report
-        report_file = f"/home/yaser/Ultimate skill/raphael-2.0/orchestrator/northbridge_autonomous_report_{self.chain_hash}.json"
+        report_file = str(get_base_dir() / "orchestrator" / f"northbridge_autonomous_report_{self.chain_hash}.json")
         with open(report_file, "w") as f:
             json.dump(self.results, f, indent=2, default=str)
         

@@ -5,6 +5,8 @@ Run Raphael community mode against ALL 15 article-body links (fresh fetch).
 import asyncio, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from config.paths import get_base_dir
+
 from orchestrator.modes import community
 
 PROMPT = """You are an expert research analyst. Analyze the following corpus of 15 sources on LLM hallucinations, freshly fetched from the Red Hat article's embedded links.
@@ -108,7 +110,7 @@ async def main():
     print(f"[*] Models: w12, w13, w480b, minimaxm3 (2 rounds) → kimi synthesis\n")
     result = await community.handle(PROMPT, rounds=2)
     
-    out = Path("/home/yaser/Ultimate skill/raphael-2.0/community_links_report_v2.json")
+    out = get_base_dir() / "community_links_report_v2.json"
     out.write_text(json.dumps(result, indent=2, default=str))
     print(f"\n[*] Full output saved to {out}")
     
