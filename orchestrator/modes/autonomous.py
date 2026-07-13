@@ -26,6 +26,8 @@ logger = logging.getLogger("autonomous")
 
 PHASES = ["recon", "scan", "exploit", "postex", "lateral", "credential", "exfil", "phish"]
 
+_RL_ACTIVE = os.getenv("RAPHAEL_RL_STRATEGY", "1") == "1"
+
 
 async def handle(target: str, phases: list = None, **kwargs) -> dict:
     if phases is None:
@@ -63,13 +65,34 @@ async def handle(target: str, phases: list = None, **kwargs) -> dict:
 
     all_findings: list[Finding] = []
 
-    for phase_name in phases:
+    if _RL_ACTIVE and phases is None:
+        from orchestrator.brain.strategy_learner import get_strategy_learner
+        from orchestrator.conductor import select_strategy, record_strategy_outcome
+        sl = get_strategy_learner()
+        rl_strategy = sl.get_best_strategy("none", all_findings)
+        if rl_strategy:
+            logger.info(f"  [RL] Strategy plan ({len(rl_strategy)} phases): "
+                        f"{' → '.join(rl_strategy[:6])}...")
+            phases = rl_strategy
+
+    phases_run = set()
+    max_phases = len(phases) + 5
+    phase_index = 0
+
+    while phase_index < len(phases) and len(phases_run) < max_phases:
+        phase_name = phases[phase_index]
+        phase_index += 1
+
         executor = PHASE_EXECUTORS.get(phase_name)
         if not executor:
             results["phases"][phase_name] = {
                 "success": False, "error": f"No executor for phase: {phase_name}",
             }
             continue
+
+        if phase_name in phases_run:
+            continue
+        phases_run.add(phase_name)
 
         breaker_key = f"{target}:{phase_name}"
         if not get_breaker().allow(breaker_key):
@@ -78,11 +101,14 @@ async def handle(target: str, phases: list = None, **kwargs) -> dict:
                 "success": False, "error": "circuit breaker open",
                 "latency": 0, "skipped": True,
             }
+            if _RL_ACTIVE:
+                record_strategy_outcome(False, all_findings, phase_name, 0.0, breaker=True)
             continue
 
-        logger.info(f"  ▶ {phase_name.upper()} PHASE")
+        logger.info(f"  ▶ {phase_name.upper()} PHASE ({phase_index}/{len(phases)})")
         guard = get_timeout_guard()
         t0 = time.time()
+        timeout_hit = False
         try:
             phase_result = await guard.run(
                 f"phase_{phase_name}",
@@ -94,6 +120,7 @@ async def handle(target: str, phases: list = None, **kwargs) -> dict:
                 phase=phase_name, success=False,
                 error=str(e), latency=time.time() - t0,
             )
+            timeout_hit = "timed out" in str(e).lower()
 
         all_findings.extend(phase_result.findings)
 
@@ -101,6 +128,12 @@ async def handle(target: str, phases: list = None, **kwargs) -> dict:
             get_breaker().record_success(breaker_key)
         else:
             get_breaker().record_failure(breaker_key)
+
+        if _RL_ACTIVE:
+            record_strategy_outcome(
+                phase_result.success, phase_result.findings, phase_name,
+                time.time() - t0, timeout=timeout_hit,
+            )
 
         strategist_output = ""
         if phase_result.success and phase_result.findings:
@@ -144,6 +177,18 @@ async def handle(target: str, phases: list = None, **kwargs) -> dict:
 
         if phase_result.success and phase_name in ("exploit", "postex"):
             attack_graph.compromise(target, CompromiseLevel.LOW_PRIVILEGE)
+
+        if _RL_ACTIVE and phase_result.success and phase_name in (
+            "lpd_exploit", "pjl_exploit", "exploit_chain", "relay_chain",
+            "craft_exploit", "generic_exploit",
+        ):
+            from orchestrator.conductor import get_strategy_plan
+            new_strategy = get_strategy_plan("low_priv", all_findings)
+            if new_strategy:
+                remaining = [p for p in new_strategy if p not in phases_run]
+                if remaining:
+                    phases = phases[:phase_index] + remaining
+                    logger.info(f"  [RL] Strategy re-planned ({len(remaining)} new phases added)")
 
         if phase_name in ("credential", "lateral") and phase_result.success:
             creds = _extract_creds(all_findings)

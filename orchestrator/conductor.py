@@ -262,3 +262,41 @@ def get_research_route(category: str) -> dict:
         },
     }
     return routes.get(category, routes["analysis"])
+
+
+def select_strategy(foothold: str = "none", findings: list = None) -> str:
+    """Select next phase using RL strategy learner.
+
+    Wraps get_strategy_learner().select_and_execute() for the conductor's
+    model routing context. Returns the phase name the RL recommends next.
+    """
+    from orchestrator.brain.strategy_learner import get_strategy_learner
+    from orchestrator.brain.phases import Finding
+    sl = get_strategy_learner()
+    findings = findings or []
+    ctx = {
+        "foothold": foothold,
+        "findings": findings,
+        "phase_bucket": "recon",
+    }
+    return sl.select_and_execute(ctx)
+
+
+def get_strategy_plan(foothold: str = "none", findings: list = None) -> list[str]:
+    """Get full ordered strategy plan from RL learner.
+
+    Returns list of phase names in recommended execution order.
+    """
+    from orchestrator.brain.strategy_learner import get_strategy_learner
+    sl = get_strategy_learner()
+    return sl.get_best_strategy(foothold, findings)
+
+
+def record_strategy_outcome(success: bool, findings: list, phase_name: str,
+                            latency: float, timeout: bool = False,
+                            breaker: bool = False):
+    """Feed outcome back to the RL strategy learner."""
+    from orchestrator.brain.strategy_learner import get_strategy_learner
+    sl = get_strategy_learner()
+    sl.record_outcome(success, findings, phase_name, latency, timeout, breaker)
+    sl.save()
