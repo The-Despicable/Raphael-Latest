@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from stem import Signal
 from stem.control import Controller
 
-TOR_PROXY = os.environ.get("TOR_PROXY", "socks5://tor-proxy:9050")
+TOR_PROXY = os.environ.get("TOR_PROXY", "socks5h://tor-proxy:9050")
 TOR_CONTROL = os.environ.get("TOR_CONTROL", "tor-proxy:9051")
 TOR_PASSWORD = os.environ.get("TOR_PASSWORD", "")
 PORT = int(os.environ.get("PORT", 3400))

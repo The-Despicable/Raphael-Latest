@@ -54,7 +54,7 @@ async def run_tool(name: str, params: dict) -> str:
 
         elif name == "gobuster":
             cmd = ["gobuster", params.get("mode", "dir"), "-u", params.get("url", ""),
-                   "-w", params.get("wordlist", "/usr/share/dirb/wordlists/common.txt")]
+                   "-w", params.get("wordlist", "/usr/share/wordlists/dirb/common.txt")]
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
             return (r.stdout or r.stderr)[:2000]
 

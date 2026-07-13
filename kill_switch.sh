@@ -11,7 +11,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-VPN_IF="tun1"
+VPN_IF=$(ip route show default | grep -oP "dev \K\S+" || echo "tun0")
 VPN_SERVER="147.135.15.16"  # VPNBook server IP
 DNS_IP="127.0.2.1"
 DOCKER_BRIDGE="br-15ae1bb2985c"  # Raphael docker bridge

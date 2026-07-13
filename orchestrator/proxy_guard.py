@@ -16,7 +16,7 @@ logger.setLevel(logging.INFO)
 
 TOR_PORT = 9050
 TOR_CONTROL_PORT = 9051
-PROXY_URL = "socks5h://127.0.0.1:9050"
+PROXY_URL = "socks5://127.0.0.1:9050"
 REAL_IP_CHECK_URLS = [
     "https://check.torproject.org/api/ip",
     "https://ifconfig.me",

