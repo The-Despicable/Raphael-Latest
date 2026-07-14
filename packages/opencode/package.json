@@ -13,10 +13,12 @@
     "profile:test": "bun run script/profile-test-files.ts",
     "build": "bun run script/build.ts",
     "dev": "bun run --conditions=browser ./src/index.ts",
+    "dev:raphael": "bun run --conditions=browser ./src/raphael-index.ts",
     "dev:temporary": "bun run --conditions=browser ./src/temporary.ts"
   },
   "bin": {
-    "opencode": "./bin/opencode"
+    "opencode": "./bin/opencode",
+    "raphael": "./bin/raphael"
   },
   "exports": {
     "./*": "./src/*.ts"

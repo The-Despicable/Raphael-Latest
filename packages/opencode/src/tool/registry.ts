@@ -29,6 +29,14 @@ import { WebSearchTool } from "./websearch"
 import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
+import {
+  NmapTool,
+  SqlmapTool,
+  BloodhoundTool,
+  MetasploitTool,
+  CrackMapExecTool,
+  ChiselTool,
+} from "./raphael-tools"
 import { Glob } from "@opencode-ai/core/util/glob"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -218,6 +226,12 @@ const layer = Layer.effect(
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
+          nmap: Tool.init(NmapTool),
+          sqlmap: Tool.init(SqlmapTool),
+          bloodhound: Tool.init(BloodhoundTool),
+          metasploit: Tool.init(MetasploitTool),
+          crackmapexec: Tool.init(CrackMapExecTool),
+          chisel: Tool.init(ChiselTool),
           ...(codeModeTool ? { execute: Tool.init(codeModeTool) } : {}),
         })
 
@@ -241,6 +255,12 @@ const layer = Layer.effect(
             ...(tool.execute ? [tool.execute] : []),
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
+            tool.nmap,
+            tool.sqlmap,
+            tool.bloodhound,
+            tool.metasploit,
+            tool.crackmapexec,
+            tool.chisel,
           ],
           task: tool.task,
           read: tool.read,

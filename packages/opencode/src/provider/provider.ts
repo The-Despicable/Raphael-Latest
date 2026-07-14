@@ -131,6 +131,15 @@ const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>
   "@ai-sdk/github-copilot": () =>
     import("@opencode-ai/core/github-copilot/copilot-provider").then((m) => m.createOpenaiCompatible),
   "venice-ai-sdk-provider": () => import("venice-ai-sdk-provider").then((m) => m.createVenice),
+  "@opencode-ai/raphael": () =>
+    import("./raphael").then((m) => (opts: any) => {
+      const create = m.createRaphael(opts)
+      return {
+        languageModel: (modelId: string) => create(modelId),
+        responses: (modelId: string) => create(modelId),
+        chat: (modelId: string) => create(modelId),
+      }
+    }),
 }
 
 type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>, model?: Model) => Promise<any>
@@ -197,6 +206,19 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
       return {
         autoload: Object.keys(input.models).length > 0,
         options: ok ? {} : { apiKey: "public" },
+      }
+    }),
+    raphael: Effect.fnUntraced(function* (input: Info) {
+      const env = yield* dep.env()
+      const hasUrl = Boolean(env["RAPHAEL_ORCHESTRATOR_URL"])
+      const hasKey = Boolean(env["RAPHAEL_API_KEY"])
+      const autoload = hasUrl
+      if (autoload && !input.options?.orchestratorUrl) {
+        input.options = { ...input.options, orchestratorUrl: env["RAPHAEL_ORCHESTRATOR_URL"] }
+      }
+      return {
+        autoload,
+        options: { ...(hasKey ? { apiKey: env["RAPHAEL_API_KEY"] } : {}) },
       }
     }),
     openai: () =>
