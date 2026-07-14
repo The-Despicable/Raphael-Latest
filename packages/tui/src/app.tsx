@@ -236,26 +236,27 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
       renderer.once("destroy", () => Deferred.doneUnsafe(shutdown, Effect.void))
       const pluginRuntime = createPluginRuntime()
 
-      yield* Effect.tryPromise(async () => {
-        // Prewarm palette before ThemeProvider mounts so `system` theme avoids a first-paint fallback flash.
-        void renderer.getPalette({ size: 16 }).catch(() => undefined)
-        const mode = (await renderer.waitForThemeMode(1000)) ?? "dark"
-        if (renderer.isDestroyed) return
+      yield* Effect.tryPromise({
+        try: async () => {
+          // Prewarm palette before ThemeProvider mounts so `system` theme avoids a first-paint fallback flash.
+          void renderer.getPalette({ size: 16 }).catch(() => undefined)
+          const mode = (await renderer.waitForThemeMode(1000)) ?? "dark"
+          if (renderer.isDestroyed) return
 
-        await render(() => {
-          return (
-            <ExitProvider
-              exit={(reason) => {
-                if (renderer.isDestroyed) return
-                exit.reason = reason
-                destroyRenderer(renderer)
-              }}
-            >
-              <EpilogueProvider set={(value) => (exit.epilogue = value)}>
-                <ErrorBoundary fallback={(error, reset) => <ErrorComponent error={error} reset={reset} mode={mode} />}>
-                  <TuiPathsProvider
-                    value={{
-                      cwd: process.cwd(),
+          await render(() => {
+            return (
+              <ExitProvider
+                exit={(reason) => {
+                  if (renderer.isDestroyed) return
+                  exit.reason = reason
+                  destroyRenderer(renderer)
+                }}
+              >
+                <EpilogueProvider set={(value) => (exit.epilogue = value)}>
+                  <ErrorBoundary fallback={(error, reset) => <ErrorComponent error={error} reset={reset} mode={mode} />}>
+                    <TuiPathsProvider
+                      value={{
+                        cwd: process.cwd(),
                       home: global.home,
                       state: global.state,
                       worktree: global.data + "/worktree",
@@ -349,8 +350,13 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
             </ExitProvider>
           )
         }, renderer)
-      })
-      yield* Deferred.await(shutdown)
+      },
+      catch: (error) => {
+        process.stderr.write("[TUI Render Error] " + (error instanceof Error ? error.stack || error.message : String(error)) + "\n")
+        return error instanceof Error ? error : new Error(String(error))
+      },
+    })
+    yield* Deferred.await(shutdown)
       return { epilogue: exit.epilogue, reason: exit.reason }
     }),
   )
