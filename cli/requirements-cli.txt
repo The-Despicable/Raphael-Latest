@@ -1,5 +1,0 @@
-# Raphael CLI dependencies
-# pip install -r cli/requirements-cli.txt
-
-httpx>=0.27.0
-rich>=13.0.0
