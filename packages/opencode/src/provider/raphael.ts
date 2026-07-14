@@ -35,23 +35,29 @@ class RaphaelLanguageModel implements LanguageModelV3 {
 
   async doStream(settings: LanguageModelV3StreamCallSettings) {
     const url = `${this.config.orchestratorUrl}/api/agent/execute`
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        messages: settings.messages,
-        tools: settings.tools,
-        target: this.config.target,
-        mode: this.config.mode,
-        model: this.modelId,
-      }),
-    })
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          messages: settings.messages,
+          tools: settings.tools,
+          target: this.config.target,
+          mode: this.config.mode,
+          model: this.modelId,
+        }),
+        signal: AbortSignal.timeout(15000),
+      })
+    } catch {
+      return this.fallbackStream("Raphael orchestrator unreachable. Is it running at " + this.config.orchestratorUrl + "? Set RAPHAEL_ORCHESTRATOR_URL if using a custom address.")
+    }
     if (!response.ok) {
       const text = await response.text().catch(() => "unknown error")
-      throw new Error(`Raphael orchestrator error (${response.status}): ${text}`)
+      return this.fallbackStream(`Raphael orchestrator error (${response.status}): ${text}`)
     }
     const reader = response.body?.getReader()
     if (!reader) throw new Error("Raphael orchestrator returned no body")
@@ -77,24 +83,40 @@ class RaphaelLanguageModel implements LanguageModelV3 {
 
   async doGenerate(settings: LanguageModelV3CallSettings) {
     const url = `${this.config.orchestratorUrl}/api/agent/execute`
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        messages: settings.messages,
-        tools: settings.tools,
-        target: this.config.target,
-        mode: this.config.mode,
-        model: this.modelId,
-        stream: false,
-      }),
-    })
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          messages: settings.messages,
+          tools: settings.tools,
+          target: this.config.target,
+          mode: this.config.mode,
+          model: this.modelId,
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(15000),
+      })
+    } catch {
+      return {
+        text: "Raphael orchestrator unreachable at " + this.config.orchestratorUrl + ". Is it running? Set RAPHAEL_ORCHESTRATOR_URL if using a custom address.",
+        response: { id: `raphael-${Date.now()}`, timestamp: new Date(), modelId: this.modelId },
+        usage: { promptTokens: 0, completionTokens: 0 },
+        finishReason: "error" as const,
+      }
+    }
     if (!response.ok) {
       const text = await response.text().catch(() => "unknown error")
-      throw new Error(`Raphael orchestrator error (${response.status}): ${text}`)
+      return {
+        text: `Raphael orchestrator error (${response.status}): ${text}`,
+        response: { id: `raphael-${Date.now()}`, timestamp: new Date(), modelId: this.modelId },
+        usage: { promptTokens: 0, completionTokens: 0 },
+        finishReason: "error" as const,
+      }
     }
     const data = await response.json()
     return {
@@ -102,6 +124,19 @@ class RaphaelLanguageModel implements LanguageModelV3 {
       response: { id: data.id ?? `raphael-${Date.now()}`, timestamp: new Date(), modelId: this.modelId },
       usage: data.usage ?? { promptTokens: 0, completionTokens: 0 },
       finishReason: data.finishReason ?? "stop",
+    }
+  }
+
+  private fallbackStream(text: string) {
+    const stream = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue(JSON.stringify({ type: "text", text }))
+        controller.close()
+      },
+    })
+    return {
+      stream,
+      response: { id: `raphael-${Date.now()}`, timestamp: new Date(), modelId: this.modelId },
     }
   }
 }
