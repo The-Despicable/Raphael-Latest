@@ -573,8 +573,14 @@ if (Test-Path $dumpPath) { Write-Output "DUMP_OK:$dumpPath" } else { exit 1 }
                                 # Check file size (skip > 1MB)
                                 if os.path.getsize(fpath) > 1_000_000:
                                     continue
+                                # TOCTOU fix: validate file hasn't changed between stat and read
+                                stat_before = os.stat(fpath)
                                 with open(fpath, "r", errors="replace") as f:
                                     content = f.read()
+                                stat_after = os.stat(fpath)
+                                if stat_before.st_mtime != stat_after.st_mtime or stat_before.st_size != stat_after.st_size:
+                                    logger.warning("File modified during read, skipping: %s", fpath)
+                                    continue
                                 # Look for connection strings in the content
                                 secret_indicators = [
                                     "password", "passwd", "pwd", "secret",

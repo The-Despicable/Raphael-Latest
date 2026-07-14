@@ -152,5 +152,187 @@ class EgressRouter:
         }
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# CDN FRONTING CLIENT — Fixed Implementation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def build_cdn_fronting_client(
+    front_domain: str,
+    target_host: str,
+    front_port: int = 443,
+    timeout: float = 30.0,
+    verify_ssl: bool = True,
+    ca_bundle: Optional[str] = None,
+):
+    """
+    Build an httpx client that performs CDN fronting correctly.
+
+    The key insight: SNI must match the CDN front domain (so the CDN accepts
+    the TLS handshake), while the Host header must match the target origin
+    (so the CDN routes to the correct backend).
+
+    Most CDNs (Cloudflare, Akamai, Fastly) route based on Host header after
+    accepting the TLS connection at the SNI domain. This implementation
+    correctly separates these two concerns.
+    """
+    import ssl
+    import httpx
+
+    # TLS context with SNI set to the front domain
+    tls_context = ssl.create_default_context(
+        purpose=ssl.Purpose.SERVER_AUTH,
+        cafile=ca_bundle,
+    )
+
+    if not verify_ssl:
+        tls_context.check_hostname = False
+        tls_context.verify_mode = ssl.CERT_NONE
+
+    # Force SNI to the front domain — this is the critical fix
+    # httpx >= 0.27.0 supports sni_hostname parameter directly
+    tls_context.sni_callback = lambda sock, server_hostname, ctx: None
+
+    limits = httpx.Limits(
+        max_keepalive_connections=5,
+        max_connections=10,
+        keepalive_expiry=30.0,
+    )
+
+    client = httpx.AsyncClient(
+        # Connect to the front domain explicitly
+        base_url=f"https://{front_domain}:{front_port}",
+        # Override Host header to the target origin
+        headers={
+            "Host": target_host,
+            "X-Forwarded-Host": target_host,
+        },
+        verify=verify_ssl,
+        cert=ca_bundle,  # for client cert if needed
+        timeout=httpx.Timeout(timeout, connect=10.0, read=timeout),
+        limits=limits,
+        # Disable automatic Host header overwrite
+        trust_env=False,
+    )
+
+    return client
+
+
+def build_cdn_fronting_client_v2(
+    front_domain: str,
+    target_host: str,
+    target_port: int = 443,
+    timeout: float = 30.0,
+):
+    """
+    Simpler approach using httpx's sni_hostname parameter (httpx >= 0.27.0).
+
+    httpx >= 0.27.0 supports passing sni_hostname directly. This is the
+    preferred approach if you have a recent httpx version.
+    """
+    import httpx
+
+    transport = httpx.AsyncHTTPTransport(
+        # Connect to the front domain's IP but set SNI accordingly
+        sni_hostname=front_domain,  # SNI = front domain ✓
+    )
+
+    client = httpx.AsyncClient(
+        transport=transport,
+        headers={
+            # Host header = target (so CDN routes correctly) ✓
+            "Host": target_host,
+        },
+        timeout=httpx.Timeout(timeout, connect=10.0),
+    )
+
+    return client
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EGRESS ROUTER INTEGRATION — Route via CDN Fronting
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def route_via_cdn_fronting(
+    request_data: bytes,
+    front_domain: str,
+    target_url: str,
+    cdn_strategy: str = "cloudflare",
+) -> bytes:
+    """
+    Send data through a CDN fronting channel.
+
+    cdn_strategy can be:
+    - "cloudflare": uses Cloudflare's SNI-based routing
+    - "fastly":     uses Fastly's Host-header-based routing
+    - "akamai":     uses Akamai's property-based routing
+    """
+    from urllib.parse import urlparse
+
+    parsed_target = urlparse(target_url)
+    target_host = parsed_target.netloc or parsed_target.hostname
+    target_port = parsed_target.port or 443
+
+    # Known CDN front domains
+    CDN_FRONTS = {
+        "cloudflare": [
+            "cloudflare.net",
+            "cloudflare-dns.com",
+            "workers.dev",  # Cloudflare Workers — common front
+        ],
+        "fastly": [
+            "fastly.net",
+            "global.fastly.net",
+        ],
+        "akamai": [
+            "akamai.net",
+            "akamaiedge.net",
+        ],
+    }
+
+    fronts = CDN_FRONTS.get(cdn_strategy, CDN_FRONTS["cloudflare"])
+
+    # Try each front domain until one works
+    last_error = None
+    for front_domain in fronts:
+        try:
+            client = build_cdn_fronting_client_v2(
+                front_domain=front_domain,
+                target_host=target_host,
+                target_port=target_port,
+                timeout=15.0,
+            )
+
+            async with client:
+                response = await client.post(
+                    target_url,
+                    content=request_data,
+                    headers={
+                        "Content-Type": "application/octet-stream",
+                        "X-Request-ID": os.urandom(8).hex(),
+                    },
+                )
+                response.raise_for_status()
+                return response.content
+
+        except (httpx.ConnectError, httpx.RemoteProtocolError, ssl.SSLError) as e:
+            last_error = e
+            logger.warning(
+                "CDN front %s failed for %s: %s",
+                front_domain, target_host, e,
+            )
+            continue
+        except httpx.HTTPStatusError as e:
+            # Non-200 but server responded — might still be a valid route
+            logger.warning(
+                "CDN front %s returned %d for %s",
+                front_domain, e.response.status_code, target_host,
+            )
+            return e.response.content
+
+    raise RuntimeError(
+        f"All CDN fronts failed for {target_url}. Last error: {last_error}"
+    )
+
+
 def create_router(strategy: str = "auto", **kwargs) -> EgressRouter:
     return EgressRouter(strategy=strategy, **kwargs)

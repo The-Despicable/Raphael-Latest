@@ -1,12 +1,251 @@
 import json
+import logging
 import os
 import sqlite3
 import time
 import hashlib
+import re
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, Optional
+from urllib.parse import urlparse
+
+logger = logging.getLogger("growth_db")
 
 DB_PATH = os.getenv("GROWTH_DB_PATH", str(Path(__file__).resolve().parent / "data" / "growth.db"))
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SANITIZATION — Prevent injection via field values
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Allowlist patterns for field values
+ALLOWED_HOSTNAME_RE = re.compile(r'^[a-zA-Z0-9._-]+$')
+ALLOWED_IP_RE = re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
+ALLOWED_URL_RE = re.compile(r'^https?://[a-zA-Z0-9._/-]+$')
+ALLOWED_USERNAME_RE = re.compile(r'^[a-zA-Z0-9_.@-]{1,256}$')
+ALLOWED_PATH_RE = re.compile(r'^/[a-zA-Z0-9._/-]+$')
+
+# Maximum lengths for input fields
+MAX_FIELD_LENGTHS = {
+    "hostname": 253,
+    "url": 2048,
+    "username": 256,
+    "path": 4096,
+    "domain": 253,
+    "ip_address": 45,  # IPv6 max
+    "service": 64,
+    "technique_name": 128,
+    "tool_name": 64,
+}
+
+
+def _sanitize_finding_value(key: str, value: Any) -> Any:
+    """
+    Sanitize a finding value based on its key name.
+
+    Returns the sanitized value, or None if the value should be rejected.
+    """
+    if not isinstance(value, str):
+        return value  # Non-string values pass through (e.g., ports as ints)
+
+    # Truncate to max length
+    max_len = MAX_FIELD_LENGTHS.get(key, 4096)
+    value = value[:max_len]
+
+    key_lower = key.lower()
+
+    # Hostname validation
+    if key_lower in ("hostname", "host", "host_name"):
+        if not ALLOWED_HOSTNAME_RE.match(value):
+            logger.warning("Rejecting invalid hostname: %s", value)
+            return None
+        return value.lower()
+
+    # IP address validation
+    if key_lower in ("ip", "ip_address", "ip_addr"):
+        if not ALLOWED_IP_RE.match(value):
+            logger.warning("Rejecting invalid IP: %s", value)
+            return None
+        return value
+
+    # URL validation
+    if key_lower in ("url", "uri", "endpoint"):
+        if not ALLOWED_URL_RE.match(value):
+            logger.warning("Rejecting invalid URL: %s", value)
+            return None
+        return value
+
+    # Username validation
+    if key_lower in ("username", "user", "account"):
+        if not ALLOWED_USERNAME_RE.match(value):
+            logger.warning("Rejecting invalid username: %s", value)
+            return None
+        return value
+
+    # Path validation
+    if key_lower in ("path", "directory", "file_path"):
+        if not ALLOWED_PATH_RE.match(value):
+            # Allow relative paths too
+            cleaned = value.lstrip("./")
+            if ALLOWED_PATH_RE.match("/" + cleaned):
+                return "/" + cleaned
+            logger.warning("Rejecting invalid path: %s", value)
+            return None
+        return value
+
+    # Strip null bytes and control characters from all string values
+    value = value.replace("\x00", "").replace("\r", "")
+    # Remove any non-printable characters
+    value = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', value)
+
+    return value
+
+
+def _sanitize_pattern_data(data: Mapping[str, Any]) -> dict[str, Any]:
+    """
+    Recursively sanitize all string values in a pattern data dict.
+    Returns a new dict with sanitized values.
+    """
+    sanitized: dict[str, Any] = {}
+    for key, value in data.items():
+        if isinstance(value, dict):
+            sanitized[key] = _sanitize_pattern_data(value)
+        elif isinstance(value, list):
+            sanitized[key] = [
+                _sanitize_finding_value(key, item) if isinstance(item, str) else item
+                for item in value
+            ]
+        elif isinstance(value, str):
+            sanitized_val = _sanitize_finding_value(key, value)
+            if sanitized_val is not None:
+                sanitized[key] = sanitized_val
+            else:
+                # Drop the field if it failed validation, but log it
+                logger.warning("Dropping invalid field %s=%s", key, repr(value))
+        else:
+            sanitized[key] = value
+    return sanitized
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PRIMARY KEY GENERATION — Deterministic, non-injectable
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _generate_pattern_id(pattern_data: Mapping[str, Any]) -> str:
+    """
+    Generate a deterministic, non-injectable primary key from pattern data.
+
+    Uses SHA-256 of the normalized (sorted keys) JSON representation.
+    This prevents any injection into the primary key space because:
+    - The hash is fixed-width (64 hex chars), regardless of input size
+    - Input is sanitized before hashing
+    - The hash function is one-way — no reverse engineering from PK to data
+    """
+    normalized = json.dumps(pattern_data, sort_keys=True, ensure_ascii=True)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DATABASE SCHEMA — Updated with non-injectable PK and TTL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE_PATTERNS_TABLE = """
+CREATE TABLE IF NOT EXISTS patterns (
+    pattern_id TEXT PRIMARY KEY,        -- SHA-256 hash (64 chars) — non-injectable
+    pattern_data TEXT NOT NULL,          -- JSON blob (sanitized)
+    technique_name TEXT,
+    confidence REAL DEFAULT 0.0,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
+    first_seen REAL NOT NULL,            -- Unix timestamp
+    last_seen REAL NOT NULL,
+    ttl REAL DEFAULT 7776000.0           -- 90 days in seconds
+);
+"""
+
+CREATE_PATTERNS_INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_patterns_technique ON patterns(technique_name);
+CREATE INDEX IF NOT EXISTS idx_patterns_confidence ON patterns(confidence DESC);
+CREATE INDEX IF NOT EXISTS idx_patterns_last_seen ON patterns(last_seen);
+"""
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RECORD PATTERN WITH INJECTION PROTECTION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def record_pattern(
+    conn: sqlite3.Connection,
+    technique_name: str,
+    pattern_data: Mapping[str, Any],
+    confidence_weight: float = 1.0,
+) -> str:
+    """
+    Record a pattern in the growth database.
+
+    Returns the pattern_id (SHA-256 hash).
+
+    Raises ValueError if pattern_data contains invalid fields after sanitization.
+    """
+    # 1. Sanitize input
+    sanitized_data = _sanitize_pattern_data(pattern_data)
+    if not sanitized_data:
+        raise ValueError("Pattern data is empty after sanitization")
+
+    # 2. Generate deterministic primary key
+    pattern_id = _generate_pattern_id(sanitized_data)
+
+    # 3. Validate technique name
+    if technique_name and len(technique_name) > 128:
+        technique_name = technique_name[:128]
+
+    # 4. Upsert with TTL
+    now = time.time()
+    sanitized_json = json.dumps(sanitized_data, indent=None, separators=(",", ":"))
+
+    conn.execute(
+        """
+        INSERT INTO patterns
+            (pattern_id, pattern_data, technique_name, confidence,
+             success_count, failure_count, first_seen, last_seen)
+        VALUES (?, ?, ?, ?, 1, 0, ?, ?)
+        ON CONFLICT(pattern_id) DO UPDATE SET
+            last_seen = excluded.last_seen,
+            success_count = success_count + 1,
+            confidence = CAST(success_count + 1 AS REAL) /
+                         CAST(success_count + 1 + failure_count AS REAL)
+        """,
+        (pattern_id, sanitized_json, technique_name,
+         confidence_weight, now, now),
+    )
+    conn.commit()
+
+    # 5. Enforce TTL — purge expired patterns
+    _purge_expired_patterns(conn)
+
+    logger.info(
+        "Recorded pattern %s (technique=%s, fields=%d)",
+        pattern_id[:12], technique_name, len(sanitized_data),
+    )
+    return pattern_id
+
+
+def _purge_expired_patterns(conn: sqlite3.Connection) -> None:
+    """Delete patterns older than their TTL."""
+    now = time.time()
+    cursor = conn.execute(
+        "DELETE FROM patterns WHERE last_seen + ttl < ?",
+        (now,),
+    )
+    if cursor.rowcount > 0:
+        logger.info("Purged %d expired patterns", cursor.rowcount)
+    conn.commit()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GROWTH DB CLASS — Updated to use new pattern recording
+# ═══════════════════════════════════════════════════════════════════════════════
 
 class GrowthDB:
     def __init__(self, db_path: str = DB_PATH):
@@ -37,16 +276,6 @@ class GrowthDB:
                     timestamp REAL NOT NULL,
                     FOREIGN KEY (target_id) REFERENCES targets(id)
                 );
-                CREATE TABLE IF NOT EXISTS patterns (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    pattern_type TEXT NOT NULL,
-                    pattern_data TEXT NOT NULL,
-                    source_target TEXT DEFAULT '',
-                    effectiveness REAL DEFAULT 1.0,
-                    use_count INTEGER DEFAULT 1,
-                    first_seen REAL NOT NULL,
-                    last_used REAL NOT NULL
-                );
                 CREATE TABLE IF NOT EXISTS techniques (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     technique_name TEXT NOT NULL UNIQUE,
@@ -67,7 +296,21 @@ class GrowthDB:
                     weight REAL DEFAULT 1.0,
                     last_seen REAL NOT NULL
                 );
-            """)
+                -- Drop old patterns table (no technique_name column, injectable PK)
+                DROP TABLE IF EXISTS patterns;
+                -- New patterns table with non-injectable PK (SHA-256 hash)
+                CREATE TABLE IF NOT EXISTS patterns (
+                    pattern_id TEXT PRIMARY KEY,        -- SHA-256 hash (64 chars) — non-injectable
+                    pattern_data TEXT NOT NULL,          -- JSON blob (sanitized)
+                    technique_name TEXT,
+                    confidence REAL DEFAULT 0.0,
+                    success_count INTEGER DEFAULT 0,
+                    failure_count INTEGER DEFAULT 0,
+                    first_seen REAL NOT NULL,            -- Unix timestamp
+                    last_seen REAL NOT NULL,
+                    ttl REAL DEFAULT 7776000.0           -- 90 days in seconds
+                );
+            """ + CREATE_PATTERNS_INDEXES)
 
     def record_target(self, host: str, tags: str = "", notes: str = "") -> str:
         now = time.time()
@@ -100,23 +343,20 @@ class GrowthDB:
                 )
 
     def record_pattern(self, pattern_type: str, pattern_data: dict, source_target: str = ""):
+        """
+        Legacy method — kept for compatibility.
+        Delegates to the new injection-safe record_pattern.
+        """
         with sqlite3.connect(self.db_path) as conn:
-            existing = conn.execute(
-                "SELECT id, use_count, effectiveness FROM patterns WHERE pattern_type = ? AND pattern_data = ?",
-                (pattern_type, json.dumps(pattern_data, sort_keys=True)),
-            ).fetchone()
-            now = time.time()
-            if existing:
-                pid, count, eff = existing
-                conn.execute(
-                    "UPDATE patterns SET use_count = ?, last_used = ? WHERE id = ?",
-                    (count + 1, now, pid),
+            try:
+                record_pattern(
+                    conn,
+                    technique_name=pattern_type,
+                    pattern_data=pattern_data,
+                    confidence_weight=1.0,
                 )
-            else:
-                conn.execute(
-                    "INSERT INTO patterns (pattern_type, pattern_data, source_target, effectiveness, use_count, first_seen, last_used) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (pattern_type, json.dumps(pattern_data, sort_keys=True), source_target, 1.0, 1, now, now),
-                )
+            except ValueError as e:
+                logger.warning("Pattern rejected: %s", e)
 
     def record_technique_result(self, technique_name: str, category: str, success: bool, description: str = ""):
         now = time.time()
