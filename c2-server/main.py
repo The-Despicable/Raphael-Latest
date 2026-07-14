@@ -37,6 +37,11 @@ TOOLS = {
     "winrm": {"description": "WinRM remote execution", "available": winrm.available},
     "netexec": {"description": "NetExec lateral movement & enumeration", "available": netexec.available},
     "bloodhound": {"description": "BloodHound AD graph queries", "available": bh.available},
+    "persistence": {"description": "Multi-platform persistence (systemd, cron, WMI, Registry, SSH keys)", "available": True},
+    "lateral_autonomous": {"description": "Autonomous lateral movement campaign (SSH, WMI, SMB, PSExec, Docker)", "available": True},
+    "credtheft": {"description": "Credential theft (browsers, LSASS, SAM, SSH, K8s, cloud, env, configs)", "available": True},
+    "exfil": {"description": "Covert exfiltration (DNS, HTTPS, ICMP, dead drop, cloud storage)", "available": True},
+    "stealth": {"description": "Advanced evasion (AMSI bypass, ETW suppression, sandbox detect, TLS randomization)", "available": True},
 }
 
 
