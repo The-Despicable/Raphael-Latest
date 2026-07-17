@@ -644,3 +644,230 @@ def get_strategy_learner() -> StrategyLearner:
     if _strategy_learner is None:
         _strategy_learner = StrategyLearner()
     return _strategy_learner
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXPLOIT REGISTRY — Maps target profiles to exploit modules
+# ═══════════════════════════════════════════════════════════════════════════════
+
+EXPLOIT_REGISTRY = {
+    # ── Active Directory Domain Controller ───────────────────────────────────
+    "windows_dc": {
+        "cve_2021_42278_nopac_shadow": {
+            "versions": ["10.0.17763", "10.0.19041", "10.0.19042", "10.0.19043", "10.0.19044", "10.0.19045", "10.0.20348"],
+            "patches": {"not": ["KB5004230", "KB5008602"]},
+            "module": "exploits.ad.nopac_shadow_creds",
+            "class": "NTPACExploit",
+            "severity": "critical",
+            "reliability": 0.85,
+            "platform": "windows",
+            "arch": "any",
+            "requires": ["impacket", "ldap3"],
+            "description": "NoPAC (CVE-2021-42278) + Shadow Credentials → DCSync",
+        },
+    },
+
+    # ── Linux Kernel (5.11–6.5) ──────────────────────────────────────────────
+    "linux_kernel": {
+        "cve_2023_0386_overlayfs_io_uring": {
+            "versions": ["5.11", "5.12", "5.13", "5.14", "5.15", "6.0", "6.1", "6.2", "6.3", "6.4", "6.5"],
+            "mitigations": {"not": ["kaslr_disabled"]},
+            "module": "exploits.linux.cve_2023_0386_overlayfs_io_uring",
+            "class": "binary",
+            "severity": "high",
+            "reliability": 0.75,
+            "platform": "linux",
+            "arch": "x64",
+            "compile": "gcc",
+            "description": "OverlayFS io_uring UAF → modprobe_path overwrite → root",
+        },
+    },
+
+    # ── Chrome/Chromium Renderer ─────────────────────────────────────────────
+    "chrome_renderer": {
+        "cve_2024_2887_v8_webgpu": {
+            "versions": ["120", "121", "122", "123", "124", "125", "126"],
+            "patches": {"not": ["127.0.6533.88"]},
+            "mitigations": {"not": ["no_webgpu"]},
+            "module": "exploits.browser.chrome_v8_webgpu_escape",
+            "class": "ChromeExploitBuilder",
+            "severity": "critical",
+            "reliability": 0.55,
+            "platform": "any",
+            "arch": "any",
+            "description": "V8 Turbofan type confusion + WebGPU sandbox escape",
+        },
+    },
+
+    # ── Kubernetes Cluster ───────────────────────────────────────────────────
+    "kubernetes": {
+        "metadata_service": {
+            "conditions": {"cloud": ["aws", "gcp", "azure"]},
+            "module": "exploits.cloud.k8s_cluster_escalation",
+            "class": "K8sClusterExploit",
+            "severity": "critical",
+            "reliability": 0.90,
+            "platform": "linux",
+            "description": "Instance metadata service + SA token → node escape → cluster-admin",
+        },
+        "privileged_pod": {
+            "conditions": {"can_create_pods": True},
+            "module": "exploits.cloud.k8s_cluster_escalation",
+            "class": "K8sPrivilegedPodExploit",
+            "severity": "high",
+            "reliability": 0.80,
+            "platform": "linux",
+            "description": "SA token → privileged pod → node escape → etcd access",
+        },
+    },
+
+    # ── Windows Kernel (10/11 22H2/23H2) ─────────────────────────────────────
+    "windows": {
+        "cve_2024_26234_dxgkrnl_acg": {
+            "versions": ["10.0.19041", "10.0.19042", "10.0.19043", "10.0.19044", "10.0.19045", "10.0.22621", "10.0.22631"],
+            "patches": {"not": ["KB5036892"]},
+            "mitigations": {"not": ["no_gpu"]},
+            "module": "exploits.windows.cve_2024_26234_dxgkrnl_acg_bypass",
+            "class": "binary",
+            "severity": "critical",
+            "reliability": 0.70,
+            "platform": "windows",
+            "arch": "x64",
+            "compile": "msvc",
+            "description": "dxgkrnl.sys UAF → IoMmu page table corruption → ACG/CIG bypass → SYSTEM",
+        },
+    },
+
+    # ── VMware ESXi Hypervisor ───────────────────────────────────────────────
+    "vmware": {
+        "cve_2025_22224_vmci": {
+            "versions": ["8.0", "8.0.1", "8.0.2"],
+            "patches": {"not": ["ESXi80U2b-23305545"]},
+            "mitigations": {"not": ["no_vmci"]},
+            "module": "exploits.vmware.esxi_vmci_escape",
+            "class": "binary",
+            "severity": "critical",
+            "reliability": 0.60,
+            "platform": "linux",
+            "arch": "x64",
+            "compile": "gcc",
+            "description": "VMCI heap overflow → hypervisor RCE → VM escape",
+        },
+    },
+
+    # ── MSSQL Server (2016–2022) ─────────────────────────────────────────────
+    "mssql": {
+        "xp_cmdshell_clr_chain": {
+            "versions": ["2016", "2017", "2019", "2022"],
+            "patches": {},
+            "mitigations": {"not": ["no_sql_port"]},
+            "module": "exploits.mssql.mssql_rce_xp_cmdshell_clr",
+            "class": "MssqlExploit",
+            "severity": "critical",
+            "reliability": 0.85,
+            "platform": "windows",
+            "arch": "any",
+            "description": "xp_cmdshell enable → CLR assembly → persistent OS shell",
+        },
+    },
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELPER: Exploit Selector
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def select_exploit(target_profile: dict) -> Optional[dict]:
+    """
+    Given a target profile from the profiler, select the best exploit.
+
+    Args:
+        target_profile: Dict with keys:
+            - os_type: "windows", "linux", "chrome", "kubernetes", "vmware", "mssql"
+            - os_version: "10.0.19041", "5.15.0", "120", "8.0", "2019"
+            - patches: list of installed KB/article IDs
+            - mitigations: list of active mitigations
+            - services: list of discovered services
+            - cloud: "aws" | "gcp" | "azure" | ""
+            - mitigations: list of active mitigations (kaslr, smep, smap, cfg, acg, cig, etc.)
+
+    Returns:
+        Dict with exploit config or None if no suitable exploit
+    """
+    os_type = target_profile.get("os_type", "").lower()
+    os_version = target_profile.get("os_version", "")
+    patches = set(target_profile.get("patches", []))
+    mitigations = set(target_profile.get("mitigations", []))
+    services = set(target_profile.get("services", []))
+    cloud = target_profile.get("cloud", "").lower()
+
+    registry = EXPLOIT_REGISTRY.get(os_type, {})
+    if not registry:
+        return None
+
+    best_match = None
+    best_score = 0.0
+
+    for exploit_id, config in registry.items():
+        score = 0.0
+
+        # Version match
+        for ver_range in config.get("versions", []):
+            if os_version.startswith(ver_range) or ver_range in os_version:
+                score += 0.4
+                break
+
+        # Patch requirements
+        required_absent = config.get("patches", {}).get("not", [])
+        missing = [p for p in required_absent if p in patches]
+        if missing:
+            score -= 0.5
+
+        # Mitigation bypass requirements
+        required_mitigations = config.get("mitigations", {}).get("not", [])
+        active = [m for m in required_mitigations if m in mitigations]
+        if not active:
+            score += 0.3
+
+        # Cloud provider match
+        if "conditions" in config:
+            cond = config["conditions"]
+            if "cloud" in cond:
+                required_cloud = cond["cloud"]
+                if isinstance(required_cloud, list):
+                    if cloud in required_cloud:
+                        score += 0.2
+                elif isinstance(required_cloud, str) and cloud == required_cloud:
+                    score += 0.2
+
+            if "can_create_pods" in cond and cond["can_create_pods"]:
+                if "create" in services or "pods" in services:
+                    score += 0.2
+            if "requires_service" in cond:
+                required_svc = cond["requires_service"]
+                if isinstance(required_svc, list):
+                    if any(svc in services for svc in required_svc):
+                        score += 0.2
+                elif isinstance(required_svc, str) and required_svc in services:
+                    score += 0.2
+
+        # Service match (legacy "services" key)
+        if "services" in config:
+            required_svc = config["services"]
+            if isinstance(required_svc, list):
+                if any(svc in services for svc in required_svc):
+                    score += 0.2
+            elif isinstance(required_svc, str) and required_svc in services:
+                score += 0.2
+
+        # Reliability factor
+        score *= config.get("reliability", 0.5)
+
+        if score > best_score:
+            best_score = score
+            best_match = {exploit_id: config}
+
+    if best_match and best_score > 0.3:
+        return best_match
+
+    return None

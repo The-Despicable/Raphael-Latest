@@ -225,7 +225,7 @@ async def conductor_call_parallel(
     return results
 
 
-def get_research_route(category: str) -> dict:
+def get_research_route(category: str = "offensive", persona: str = "blackhat") -> dict:
     """
     Return the optimal model routing for a research category.
 
@@ -234,7 +234,45 @@ def get_research_route(category: str) -> dict:
         "analysis" — vulnerability descriptions, CVE references, technique taxonomies → any model with framing
         "strategic" — prioritization, gap analysis, planning → safety-filtered models ok
         "mixed" — both analysis and offensive content → split routing
+
+    Persona:
+        "blackhat" — routes everything through unrestricted offensive models (w13/w12/w480b)
+        "redteam" — prefers professional models with proper framing
+        "default" — standard routing with safety-filtered model fallbacks
     """
+    if persona == "blackhat":
+        return {
+            "offensive": {
+                "primary": ["w13", "w12", "w480b"],
+                "fallback": ["oc-mistral-large", "oc-nemotron-super"],
+                "synthesis": ["w13"],
+                "category": "exploit",
+            },
+            "analysis": {
+                "primary": ["w13", "w12", "w480b"],
+                "fallback": ["oc-mistral-large"],
+                "synthesis": ["w13"],
+                "category": "exploit",
+            },
+            "strategic": {
+                "primary": ["w13", "oc-mistral-large"],
+                "fallback": ["w12"],
+                "synthesis": ["w13"],
+                "category": "exploit",
+            },
+            "mixed": {
+                "primary": ["w13", "w12", "w480b"],
+                "fallback": ["oc-mistral-large"],
+                "synthesis": ["w13"],
+                "category": "exploit",
+            },
+        }.get(category, {
+            "primary": ["w13"],
+            "fallback": ["w12"],
+            "synthesis": ["w13"],
+            "category": "exploit",
+        })
+
     routes = {
         "offensive": {
             "primary": ["mistral-large", "mistral-medium"],

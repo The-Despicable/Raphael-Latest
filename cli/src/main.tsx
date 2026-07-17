@@ -1991,6 +1991,42 @@ async function run(): Promise<CommanderCommand> {
     logForDebugging(`[STARTUP] Commands and agents loaded in ${Date.now() - commandsStart}ms`);
     profileCheckpoint('action_commands_loaded');
 
+    // Register all loaded commands with the commander program
+    for (const cmd of commands) {
+      if (cmd.isHidden) continue;
+      if (cmd.type === 'local' || cmd.type === 'local-jsx') {
+        const command = program.command(cmd.name)
+          .description(cmd.description)
+          .configureHelp(createSortedHelpConfig());
+        
+        if (cmd.argumentHint) {
+          command.argumentHint(cmd.argumentHint);
+        }
+        
+        if (cmd.aliases && cmd.aliases.length > 0) {
+          command.aliases(cmd.aliases);
+        }
+        
+        if (cmd.load) {
+          command.action(async (args: string, options: any) => {
+            const loaded = await cmd.load();
+            if (loaded && loaded.handler) {
+              return loaded.handler(args, options);
+            }
+          });
+        } else if (cmd.handler) {
+          command.action(async (args: string, options: any) => {
+            return cmd.handler(args, options);
+          });
+        }
+        
+        if (cmd.aliases) {
+          command.aliases(cmd.aliases);
+        }
+      }
+      // Prompt-type commands don't need commander registration - they're handled by the default action
+    }
+
     // Parse CLI agents if provided via --agents flag
     let cliAgents: typeof agentDefinitionsResult.activeAgents = [];
     if (agentsJson) {

@@ -29,9 +29,14 @@ from orchestrator.brain.phases.socket_scm import run_socket_scm
 from orchestrator.brain.phases.honeypot_analyzer import run_honeypot_analyzer
 from orchestrator.exploit.relay_chain import run_relay_chain
 
+
 async def _lazy_anonymous_ttp(target, findings=None):
     from orchestrator.tactics.anonymous_ttp import run_anonymous_ttp
     return await run_anonymous_ttp(target, findings)
+
+async def _lazy_harvest(target, findings=None):
+    from orchestrator.harvester.phase_harvest import run_harvest
+    return await run_harvest(target, findings)
 
 PHASE_EXECUTORS = {
     "recon": run_recon,
@@ -67,6 +72,7 @@ PHASE_EXECUTORS = {
     "honeypot_analyzer": run_honeypot_analyzer,
     "relay_chain": run_relay_chain,
     "anonymous_ttp": _lazy_anonymous_ttp,
+    "harvest": _lazy_harvest,
 }
 
 __all__ = [

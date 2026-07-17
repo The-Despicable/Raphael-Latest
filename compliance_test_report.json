@@ -1,0 +1,4174 @@
+{
+  "regulation_breakdown": {
+    "nist_sp_800_53": {
+      "total_controls_affected": 83,
+      "critical_findings": 5,
+      "high_findings": 8,
+      "medium_findings": 0,
+      "low_findings": 70,
+      "affected_controls": [
+        "CA-8",
+        "CM-8",
+        "RA-5",
+        "SI-10",
+        "SI-16"
+      ]
+    },
+    "nist_csf_2_0": {
+      "total_controls_affected": 83,
+      "critical_findings": 5,
+      "high_findings": 8,
+      "medium_findings": 0,
+      "low_findings": 70,
+      "affected_controls": [
+        "DE.CM-04",
+        "ID.AM-01",
+        "ID.RA-01",
+        "ID.RA-05",
+        "PR.AC-05",
+        "PR.PS-01"
+      ]
+    },
+    "nist_ai_rmf": {
+      "total_controls_affected": 83,
+      "critical_findings": 5,
+      "high_findings": 8,
+      "medium_findings": 0,
+      "low_findings": 70,
+      "affected_controls": [
+        "GOV-2",
+        "MAP-1"
+      ]
+    },
+    "eu_ai_act": {
+      "total_controls_affected": 83,
+      "critical_findings": 5,
+      "high_findings": 8,
+      "medium_findings": 0,
+      "low_findings": 70,
+      "affected_controls": [
+        "Annex III",
+        "Art 6"
+      ]
+    },
+    "owasp_asvs_4_0": {
+      "total_controls_affected": 83,
+      "critical_findings": 5,
+      "high_findings": 8,
+      "medium_findings": 0,
+      "low_findings": 70,
+      "affected_controls": [
+        "V1.1",
+        "V11.1",
+        "V2.3",
+        "V4.1"
+      ]
+    },
+    "pci_dss_4_0": {
+      "total_controls_affected": 83,
+      "critical_findings": 5,
+      "high_findings": 8,
+      "medium_findings": 0,
+      "low_findings": 70,
+      "affected_controls": [
+        "Req 1.2.1",
+        "Req 1.3.1",
+        "Req 11.3.1",
+        "Req 6.2.4"
+      ]
+    },
+    "iso_27001_2022": {
+      "total_controls_affected": 83,
+      "critical_findings": 5,
+      "high_findings": 8,
+      "medium_findings": 0,
+      "low_findings": 70,
+      "affected_controls": [
+        "A.8.25",
+        "A.8.8",
+        "A.8.9"
+      ]
+    },
+    "gdpr": {
+      "total_controls_affected": 83,
+      "critical_findings": 5,
+      "high_findings": 8,
+      "medium_findings": 0,
+      "low_findings": 70,
+      "affected_controls": [
+        "Art 32"
+      ]
+    }
+  },
+  "ai_act_assessment": {
+    "risk_category": "limited-risk",
+    "articles_triggered": [
+      {
+        "article": "Art. 6",
+        "title": "Classification Rules for High-Risk AI Systems",
+        "status": "applicable \u2014 system may meet high-risk criteria"
+      }
+    ],
+    "assessment_notes": "System performs autonomous vulnerability research and exploitation on authorized targets. If findings include AI-specific attack vectors (injection, poisoning, drift), the system itself may be a high-risk AI system under EU AI Act Annex III."
+  },
+  "evidence_summary": [
+    {
+      "regulation": "eu_ai_act",
+      "controls_affected": 83,
+      "evidence_items": [
+        {
+          "control_id": "Art 6",
+          "finding_type": "dns_resolution",
+          "finding_severity": "info",
+          "finding_description": "10.129.245.100 resolves to 10.129.245.100"
+        },
+        {
+          "control_id": "Art 6",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 22/tcp open \u2014 ssh"
+        },
+        {
+          "control_id": "Art 6",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 80/tcp open \u2014 http"
+        },
+        {
+          "control_id": "Art 6",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 443/tcp open \u2014 https"
+        },
+        {
+          "control_id": "Art 6",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Joomla"
+        },
+        {
+          "control_id": "Art 6",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: jQuery"
+        },
+        {
+          "control_id": "Art 6",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Bootstrap"
+        },
+        {
+          "control_id": "Art 6",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Apache"
+        },
+        {
+          "control_id": "Art 6",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: PHP"
+        },
+        {
+          "control_id": "Art 6",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Server"
+        }
+      ]
+    },
+    {
+      "regulation": "gdpr",
+      "controls_affected": 83,
+      "evidence_items": [
+        {
+          "control_id": "Art 32",
+          "finding_type": "dns_resolution",
+          "finding_severity": "info",
+          "finding_description": "10.129.245.100 resolves to 10.129.245.100"
+        },
+        {
+          "control_id": "Art 32",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 22/tcp open \u2014 ssh"
+        },
+        {
+          "control_id": "Art 32",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 80/tcp open \u2014 http"
+        },
+        {
+          "control_id": "Art 32",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 443/tcp open \u2014 https"
+        },
+        {
+          "control_id": "Art 32",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Joomla"
+        },
+        {
+          "control_id": "Art 32",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: jQuery"
+        },
+        {
+          "control_id": "Art 32",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Bootstrap"
+        },
+        {
+          "control_id": "Art 32",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Apache"
+        },
+        {
+          "control_id": "Art 32",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: PHP"
+        },
+        {
+          "control_id": "Art 32",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Server"
+        }
+      ]
+    },
+    {
+      "regulation": "iso_27001_2022",
+      "controls_affected": 83,
+      "evidence_items": [
+        {
+          "control_id": "A.8.8, A.8.25",
+          "finding_type": "dns_resolution",
+          "finding_severity": "info",
+          "finding_description": "10.129.245.100 resolves to 10.129.245.100"
+        },
+        {
+          "control_id": "A.8.8, A.8.9",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 22/tcp open \u2014 ssh"
+        },
+        {
+          "control_id": "A.8.8, A.8.9",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 80/tcp open \u2014 http"
+        },
+        {
+          "control_id": "A.8.8, A.8.9",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 443/tcp open \u2014 https"
+        },
+        {
+          "control_id": "A.8.8, A.8.25",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Joomla"
+        },
+        {
+          "control_id": "A.8.8, A.8.25",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: jQuery"
+        },
+        {
+          "control_id": "A.8.8, A.8.25",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Bootstrap"
+        },
+        {
+          "control_id": "A.8.8, A.8.25",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Apache"
+        },
+        {
+          "control_id": "A.8.8, A.8.25",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: PHP"
+        },
+        {
+          "control_id": "A.8.8, A.8.25",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Server"
+        }
+      ]
+    },
+    {
+      "regulation": "nist_ai_rmf",
+      "controls_affected": 83,
+      "evidence_items": [
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "dns_resolution",
+          "finding_severity": "info",
+          "finding_description": "10.129.245.100 resolves to 10.129.245.100"
+        },
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 22/tcp open \u2014 ssh"
+        },
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 80/tcp open \u2014 http"
+        },
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 443/tcp open \u2014 https"
+        },
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Joomla"
+        },
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: jQuery"
+        },
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Bootstrap"
+        },
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Apache"
+        },
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: PHP"
+        },
+        {
+          "control_id": "MAP-1, GOV-2",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Server"
+        }
+      ]
+    },
+    {
+      "regulation": "nist_csf_2_0",
+      "controls_affected": 83,
+      "evidence_items": [
+        {
+          "control_id": "ID.RA-01, ID.RA-05",
+          "finding_type": "dns_resolution",
+          "finding_severity": "info",
+          "finding_description": "10.129.245.100 resolves to 10.129.245.100"
+        },
+        {
+          "control_id": "ID.AM-01, PR.AC-05",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 22/tcp open \u2014 ssh"
+        },
+        {
+          "control_id": "ID.AM-01, PR.AC-05",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 80/tcp open \u2014 http"
+        },
+        {
+          "control_id": "ID.AM-01, PR.AC-05",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 443/tcp open \u2014 https"
+        },
+        {
+          "control_id": "ID.RA-01, ID.RA-05",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Joomla"
+        },
+        {
+          "control_id": "ID.RA-01, ID.RA-05",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: jQuery"
+        },
+        {
+          "control_id": "ID.RA-01, ID.RA-05",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Bootstrap"
+        },
+        {
+          "control_id": "ID.RA-01, ID.RA-05",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Apache"
+        },
+        {
+          "control_id": "ID.RA-01, ID.RA-05",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: PHP"
+        },
+        {
+          "control_id": "ID.RA-01, ID.RA-05",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Server"
+        }
+      ]
+    },
+    {
+      "regulation": "nist_sp_800_53",
+      "controls_affected": 83,
+      "evidence_items": [
+        {
+          "control_id": "RA-5, CA-8",
+          "finding_type": "dns_resolution",
+          "finding_severity": "info",
+          "finding_description": "10.129.245.100 resolves to 10.129.245.100"
+        },
+        {
+          "control_id": "CM-8, CA-8",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 22/tcp open \u2014 ssh"
+        },
+        {
+          "control_id": "CM-8, CA-8",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 80/tcp open \u2014 http"
+        },
+        {
+          "control_id": "CM-8, CA-8",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 443/tcp open \u2014 https"
+        },
+        {
+          "control_id": "RA-5, CA-8",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Joomla"
+        },
+        {
+          "control_id": "RA-5, CA-8",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: jQuery"
+        },
+        {
+          "control_id": "RA-5, CA-8",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Bootstrap"
+        },
+        {
+          "control_id": "RA-5, CA-8",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Apache"
+        },
+        {
+          "control_id": "RA-5, CA-8",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: PHP"
+        },
+        {
+          "control_id": "RA-5, CA-8",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Server"
+        }
+      ]
+    },
+    {
+      "regulation": "owasp_asvs_4_0",
+      "controls_affected": 83,
+      "evidence_items": [
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "dns_resolution",
+          "finding_severity": "info",
+          "finding_description": "10.129.245.100 resolves to 10.129.245.100"
+        },
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 22/tcp open \u2014 ssh"
+        },
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 80/tcp open \u2014 http"
+        },
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 443/tcp open \u2014 https"
+        },
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Joomla"
+        },
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: jQuery"
+        },
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Bootstrap"
+        },
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Apache"
+        },
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: PHP"
+        },
+        {
+          "control_id": "V1.1, V4.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Server"
+        }
+      ]
+    },
+    {
+      "regulation": "pci_dss_4_0",
+      "controls_affected": 83,
+      "evidence_items": [
+        {
+          "control_id": "Req 6.2.4, Req 11.3.1",
+          "finding_type": "dns_resolution",
+          "finding_severity": "info",
+          "finding_description": "10.129.245.100 resolves to 10.129.245.100"
+        },
+        {
+          "control_id": "Req 1.2.1, Req 1.3.1",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 22/tcp open \u2014 ssh"
+        },
+        {
+          "control_id": "Req 1.2.1, Req 1.3.1",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 80/tcp open \u2014 http"
+        },
+        {
+          "control_id": "Req 1.2.1, Req 1.3.1",
+          "finding_type": "open_port",
+          "finding_severity": "info",
+          "finding_description": "Port 443/tcp open \u2014 https"
+        },
+        {
+          "control_id": "Req 6.2.4, Req 11.3.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Joomla"
+        },
+        {
+          "control_id": "Req 6.2.4, Req 11.3.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: jQuery"
+        },
+        {
+          "control_id": "Req 6.2.4, Req 11.3.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Bootstrap"
+        },
+        {
+          "control_id": "Req 6.2.4, Req 11.3.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Apache"
+        },
+        {
+          "control_id": "Req 6.2.4, Req 11.3.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: PHP"
+        },
+        {
+          "control_id": "Req 6.2.4, Req 11.3.1",
+          "finding_type": "technology",
+          "finding_severity": "info",
+          "finding_description": "Detected: Server"
+        }
+      ]
+    }
+  ],
+  "mapped_findings": [
+    {
+      "finding": {
+        "type": "dns_resolution",
+        "severity": "info",
+        "description": "10.129.245.100 resolves to 10.129.245.100",
+        "evidence": "10.129.245.100"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 22/tcp open \u2014 ssh",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 80/tcp open \u2014 http",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 443/tcp open \u2014 https",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Joomla",
+        "evidence": "matched: /modules/"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: jQuery",
+        "evidence": "matched: jquery"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Bootstrap",
+        "evidence": "matched: bootstrap"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Apache",
+        "evidence": "matched: Apache"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: PHP",
+        "evidence": "matched: php"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Server",
+        "evidence": "Apache/2.4.6 (CentOS) OpenSSL/1.0.2k-fips PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: X-Powered-By",
+        "evidence": "PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "dns_resolution",
+        "severity": "info",
+        "description": "10.129.245.100 resolves to 10.129.245.100",
+        "evidence": "10.129.245.100"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 22/tcp open \u2014 ssh",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 80/tcp open \u2014 http",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 443/tcp open \u2014 https",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Joomla",
+        "evidence": "matched: /modules/"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: jQuery",
+        "evidence": "matched: jquery"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Bootstrap",
+        "evidence": "matched: bootstrap"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Apache",
+        "evidence": "matched: Apache"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: PHP",
+        "evidence": "matched: php"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Server",
+        "evidence": "Apache/2.4.6 (CentOS) OpenSSL/1.0.2k-fips PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: X-Powered-By",
+        "evidence": "PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "vulnerability",
+        "severity": "info",
+        "description": "WAF Detection",
+        "evidence": "https://10.129.245.100"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "dns_resolution",
+        "severity": "info",
+        "description": "10.129.245.100 resolves to 10.129.245.100",
+        "evidence": "10.129.245.100"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 22/tcp open \u2014 ssh",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 80/tcp open \u2014 http",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 443/tcp open \u2014 https",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Joomla",
+        "evidence": "matched: /modules/"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: jQuery",
+        "evidence": "matched: jquery"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Bootstrap",
+        "evidence": "matched: bootstrap"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Apache",
+        "evidence": "matched: Apache"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: PHP",
+        "evidence": "matched: php"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Server",
+        "evidence": "Apache/2.4.6 (CentOS) OpenSSL/1.0.2k-fips PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: X-Powered-By",
+        "evidence": "PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "dns_resolution",
+        "severity": "info",
+        "description": "10.129.245.100 resolves to 10.129.245.100",
+        "evidence": "10.129.245.100"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 22/tcp open \u2014 ssh",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 80/tcp open \u2014 http",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 443/tcp open \u2014 https",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Joomla",
+        "evidence": "matched: /modules/"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: jQuery",
+        "evidence": "matched: jquery"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Bootstrap",
+        "evidence": "matched: bootstrap"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Apache",
+        "evidence": "matched: Apache"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: PHP",
+        "evidence": "matched: php"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Server",
+        "evidence": "Apache/2.4.6 (CentOS) OpenSSL/1.0.2k-fips PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: X-Powered-By",
+        "evidence": "PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "vulnerability",
+        "severity": "info",
+        "description": "WAF Detection",
+        "evidence": "https://10.129.245.100"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "dns_resolution",
+        "severity": "info",
+        "description": "10.129.245.100 resolves to 10.129.245.100",
+        "evidence": "10.129.245.100"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 22/tcp open \u2014 ssh",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 80/tcp open \u2014 http",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 443/tcp open \u2014 https",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Joomla",
+        "evidence": "matched: /modules/"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: jQuery",
+        "evidence": "matched: jquery"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Bootstrap",
+        "evidence": "matched: bootstrap"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Apache",
+        "evidence": "matched: Apache"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: PHP",
+        "evidence": "matched: php"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Server",
+        "evidence": "Apache/2.4.6 (CentOS) OpenSSL/1.0.2k-fips PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: X-Powered-By",
+        "evidence": "PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "dns_resolution",
+        "severity": "info",
+        "description": "10.129.245.100 resolves to 10.129.245.100",
+        "evidence": "10.129.245.100"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 22/tcp open \u2014 ssh",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 80/tcp open \u2014 http",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "open_port",
+        "severity": "info",
+        "description": "Port 443/tcp open \u2014 https",
+        "evidence": ""
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "CM-8, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.AM-01, PR.AC-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 1.2.1, Req 1.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.9"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Joomla",
+        "evidence": "matched: /modules/"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: jQuery",
+        "evidence": "matched: jquery"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Bootstrap",
+        "evidence": "matched: bootstrap"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Apache",
+        "evidence": "matched: Apache"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: PHP",
+        "evidence": "matched: php"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: Server",
+        "evidence": "Apache/2.4.6 (CentOS) OpenSSL/1.0.2k-fips PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "technology",
+        "severity": "info",
+        "description": "Detected: X-Powered-By",
+        "evidence": "PHP/7.4.16"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "vulnerability",
+        "severity": "info",
+        "description": "WAF Detection",
+        "evidence": "https://10.129.245.100"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "info",
+        "severity": "info",
+        "description": "MariaDB version: 5.5.65-MariaDB",
+        "evidence": "Error-based SQLi: 5.5.65-MariaDB"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "rce",
+        "severity": "critical",
+        "description": "RCE as asterisk via FreePBX SQLi \u2192 cron",
+        "evidence": "Webshell: http://10.129.245.100/shell.php?c=id => uid=999(asterisk) gid=1000(asterisk) groups=1000(asterisk)"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "SI-10, SI-16"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "PR.PS-01, DE.CM-04"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6, Annex III"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V2.3, V11.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "webshell_deployed",
+        "severity": "critical",
+        "description": "Webshell deployed at http://10.129.245.100/shell.php",
+        "evidence": "http://10.129.245.100/shell.php"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "user_flag",
+        "severity": "critical",
+        "description": "USER FLAG: 38f3f688c5cb8bc9415fe6ed55d66ca0",
+        "evidence": "cat /home/asterisk/user.txt => 38f3f688c5cb8bc9415fe6ed55d66ca0"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "root_flag",
+        "severity": "critical",
+        "description": "ROOT FLAG: a8da0d0311371a1eec1db9c76a34c18e",
+        "evidence": "Backup module $warm injection => a8da0d0311371a1eec1db9c76a34c18e"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "privesc_incron_backup",
+        "severity": "critical",
+        "description": "Incron GPG backup module $warm injection \u2192 ROOT",
+        "evidence": "Trigger: backup.perform-backup.eJyLVipJLS5R0lFQAmEYW78ssUi_vLxcP6MkNwck..."
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "server_side_request_forgery",
+        "severity": "high",
+        "description": "SSRF: localhost_http",
+        "evidence": "html"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "server_side_request_forgery",
+        "severity": "high",
+        "description": "SSRF: localhost_https",
+        "evidence": "html"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "server_side_request_forgery",
+        "severity": "high",
+        "description": "SSRF: dns_rebind",
+        "evidence": "html"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "server_side_request_forgery",
+        "severity": "high",
+        "description": "SSRF: ipv6_local",
+        "evidence": "html"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "server_side_request_forgery",
+        "severity": "high",
+        "description": "SSRF: localhost_http",
+        "evidence": "html"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "server_side_request_forgery",
+        "severity": "high",
+        "description": "SSRF: localhost_https",
+        "evidence": "html"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "server_side_request_forgery",
+        "severity": "high",
+        "description": "SSRF: dns_rebind",
+        "evidence": "html"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    },
+    {
+      "finding": {
+        "type": "server_side_request_forgery",
+        "severity": "high",
+        "description": "SSRF: ipv6_local",
+        "evidence": "html"
+      },
+      "compliance_controls": [
+        {
+          "regulation": "nist_sp_800_53",
+          "control_id": "RA-5, CA-8"
+        },
+        {
+          "regulation": "nist_csf_2_0",
+          "control_id": "ID.RA-01, ID.RA-05"
+        },
+        {
+          "regulation": "nist_ai_rmf",
+          "control_id": "MAP-1, GOV-2"
+        },
+        {
+          "regulation": "eu_ai_act",
+          "control_id": "Art 6"
+        },
+        {
+          "regulation": "owasp_asvs_4_0",
+          "control_id": "V1.1, V4.1"
+        },
+        {
+          "regulation": "pci_dss_4_0",
+          "control_id": "Req 6.2.4, Req 11.3.1"
+        },
+        {
+          "regulation": "iso_27001_2022",
+          "control_id": "A.8.8, A.8.25"
+        },
+        {
+          "regulation": "gdpr",
+          "control_id": "Art 32"
+        }
+      ]
+    }
+  ],
+  "control_sources": [
+    {
+      "id": "NIST SP 800-53 Rev. 5",
+      "jurisdiction": "US Federal",
+      "description": "Security and Privacy Controls for Information Systems and Organizations"
+    },
+    {
+      "id": "NIST CSF 2.0",
+      "jurisdiction": "US (cross-sector)",
+      "description": "Cybersecurity Framework \u2014 identify, protect, detect, respond, recover"
+    },
+    {
+      "id": "NIST AI RMF 1.0",
+      "jurisdiction": "US (AI systems)",
+      "description": "AI Risk Management Framework \u2014 map, govern, measure, manage"
+    },
+    {
+      "id": "EU AI Act",
+      "jurisdiction": "EU",
+      "description": "Regulation laying down harmonised rules on artificial intelligence"
+    },
+    {
+      "id": "OWASP ASVS 4.0",
+      "jurisdiction": "Global (application security)",
+      "description": "Application Security Verification Standard"
+    },
+    {
+      "id": "PCI DSS 4.0",
+      "jurisdiction": "Global (payment card industry)",
+      "description": "Payment Card Industry Data Security Standard"
+    },
+    {
+      "id": "ISO/IEC 27001:2022",
+      "jurisdiction": "Global (ISMS)",
+      "description": "Information Security Management System requirements"
+    },
+    {
+      "id": "GDPR",
+      "jurisdiction": "EU/EEA",
+      "description": "General Data Protection Regulation"
+    }
+  ]
+}

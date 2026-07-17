@@ -159,18 +159,9 @@
     "fweb_s3+_l0_p0_w1_phentry": {
       "anonymous_ttp": 5.0
     },
-    "fweb_s0_l0_p0_w0_phentry": {},
-    "flow_priv_s0_l0_p0_w0_phentry": {},
-    "fhigh_priv_s0_l0_p0_w0_phprivesc": {},
-    "fhigh_priv_s0_l0_p0_w0_phpostex": {},
-    "fhigh_priv_s0_l0_p0_w0_phexfil": {},
-    "froot_s0_l0_p0_w0_phexfil": {},
-    "froot_s0_l0_p0_w0_phpostex": {},
-    "froot_s0_l0_p0_w0_phentry": {},
     "fweb_s0_l0_p0_w0_phrecon": {
       "exploit_chaining": -0.00125
-    },
-    "fnone_s0_l0_p0_w0_phpostex": {}
+    }
   },
   "alpha": 0.3,
   "gamma": 0.9,

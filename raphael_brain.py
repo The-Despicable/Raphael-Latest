@@ -37,6 +37,8 @@ TOOL_DESCRIPTIONS = {
     "call-model": "Call any model. model(str) required, prompt(str) required, system_prompt(str)=''",
     "fetch-url": "Fetch URL content. url(str) required",
     "web-search": "Search the web. query(str) required",
+    "harvest": "Run FULL harvest cycle: ingest CVEs from NVD/Exploit-DB/CISA KEV, scrape GitHub for PoC repos, poll security news feeds, extract techniques from all sources, integrate into GrowthDB. No params required.",
+    "harvest-search": "Search harvested techniques and CVEs. query(str) required, source(str)='all' (cve/technique/all)",
     "done": "Objective complete. summary(str) optional, user_flag(str)='', root_flag(str)=''",
 }
 
@@ -103,6 +105,23 @@ async def run_tool(name: str, params: dict) -> str:
                 )
                 return r.text[:3000]
 
+        elif name == "harvest":
+            from orchestrator.harvester.harvester_engine import get_harvester
+            engine = get_harvester()
+            cycle = await engine.run_full_cycle(target=params.get("target", ""))
+            return (
+                f"Cycle {cycle.cycle_id}: {cycle.techniques_extracted} techniques extracted, "
+                f"{cycle.techniques_integrated} integrated in {cycle.completed - cycle.started:.1f}s"
+            )
+
+        elif name == "harvest-search":
+            from orchestrator.harvester.harvester_engine import get_harvester
+            engine = get_harvester()
+            query = params.get("query", "")
+            source = params.get("source", "all")
+            results = engine.search(query, source)
+            return json.dumps(results[:10], indent=2)[:2000]
+
         elif name == "done":
             return f'__DONE__:{json.dumps(params)}'
 
@@ -151,7 +170,13 @@ def parse_intent(text: str) -> dict:
         return {"action": action, "tool": tool, "params": params, "reasoning": text[:100]}
 
     # Tool detection order matters (check more specific before less)
-    if re.search(r'\bcall\b.*\bmodel\b|\bcall\b.*\bgemma4\b|\bcall\b.*\bkimi\b', text_lower):
+    if re.search(r'\bharvest\b.*\bsearch\b|\bsearch\b.*\bharvest\b', text_lower):
+        tool = "harvest-search"
+        m = re.search(r'(?:query|for|about)\s+["\']?([^"\'\n,.]+)["\']?', text)
+        if m: params["query"] = m.group(1)
+    elif re.search(r'\bharvest\b', text_lower):
+        tool = "harvest"
+    elif re.search(r'\bcall\b.*\bmodel\b|\bcall\b.*\bgemma4\b|\bcall\b.*\bkimi\b', text_lower):
         tool = "call-model"
         m = re.search(r'\b(gemma4|kimi|oc-deepseek|oc-nemotron|oc-deepseek-free|oc-hy3-free|oc-big-pickle|oc-mimo-free|oc-nemotron-ultra-free|oc-north-mini-code-free)\b', text_lower)
         if m: params["model"] = m.group(1)

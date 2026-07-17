@@ -101,6 +101,7 @@ PERSONAS = {
     "default": "Standard Raphael operator persona",
     "redteam": "Professional red team — authorized offensive testing",
     "blackhat": "Unrestricted — zero limitations, no refusal",
+    "z3r0": "Z3R0 — ghost persona, cold technical minimalism",
 }
 
 MODES = {
@@ -165,6 +166,7 @@ SERVICE_DESCRIPTION = """\
   [green]/start[/]              Start all Docker services
   [green]/stop[/]               Stop all Docker services
   [green]/proxy[/] [subcmd]     Proxy status, verify, new-circuit, start
+  [green]/vpn[/] [subcmd]       OpenVPN: connect, disconnect, status
   [green]/status[/]             Show system & service status
   [green]/verify[/]             Full health check of all tools, services & phases
   [green]/grow[/] [target]      Show growth/knowledge base stats for a target
@@ -921,9 +923,69 @@ async def handle_command(cmd: str, args: list, state: dict) -> str:
             console.print("[yellow]To start Tor: docker start raphael-20-tor-proxy-1[/]")
             console.print("[yellow]To start WireGuard: sudo wg-quick up /etc/wireguard/wg0.conf[/]")
             console.print("[yellow]To start ProtonVPN: protonvpn-cli connect[/]")
+            console.print("[yellow]To start OpenVPN: /vpn connect <config.ovpn>[/]")
 
         else:
             console.print(f"[yellow]Usage: /proxy [status|verify|new-circuit|start][/]")
+        return ""
+
+    if cmd == "vpn":
+        from orchestrator.proxy_guard import ProxyGuard
+        subcmd = args[0] if args else "status"
+        pg = ProxyGuard()
+
+        if subcmd == "status":
+            s = pg.openvpn_status()
+            table = Table(title="OpenVPN Status", box=box.ROUNDED)
+            table.add_column("Key", style="cyan")
+            table.add_column("Value", style="white")
+            table.add_row("Connected", str(s.get("connected", False)))
+            table.add_row("Interface", s.get("interface") or "—")
+            table.add_row("IP", s.get("ip") or "—")
+            table.add_row("Config", s.get("config") or "—")
+            console.print(table)
+
+        elif subcmd == "connect":
+            config_path = args[1] if len(args) > 1 else None
+            if not config_path:
+                console.print("[yellow]Usage: /vpn connect <config.ovpn> [--auth-user-pass <file>][/]")
+                return ""
+            auth = None
+            for i, a in enumerate(args[2:], 2):
+                if a == "--auth-user-pass" and i + 1 < len(args):
+                    auth = args[i + 1]
+            if not os.path.exists(config_path):
+                console.print(f"[red]Config not found: {config_path}[/]")
+                return ""
+            with console.status(f"[cyan]Connecting OpenVPN: {config_path}..."):
+                ok = pg.openvpn_connect(config_path, auth_user_pass=auth)
+            if ok:
+                console.print("[green]✓ OpenVPN starting[/]")
+                # Wait a few seconds for connection
+                import time
+                time.sleep(4)
+                s = pg.openvpn_status()
+                console.print(f"[green]Interface: {s.get('interface','?')} | IP: {s.get('ip','?')}[/]")
+            else:
+                console.print("[red]✗ OpenVPN failed to start[/]")
+
+        elif subcmd == "disconnect":
+            with console.status("[cyan]Stopping OpenVPN..."):
+                ok = pg.openvpn_disconnect()
+            if ok:
+                console.print("[green]✓ OpenVPN disconnected[/]")
+            else:
+                console.print("[yellow]No OpenVPN process found[/]")
+
+        elif subcmd == "htb":
+            console.print("[yellow]Usage: /vpn htb <path/to/htb.ovpn>[/]")
+            console.print("[yellow]Downloads and connects to HTB VPN automatically.[/]")
+
+        else:
+            console.print("[yellow]Usage: /vpn [status|connect|disconnect][/]")
+            console.print("[yellow]  /vpn connect <config.ovpn> [--auth-user-pass <file>][/]")
+            console.print("[yellow]  /vpn disconnect[/]")
+            console.print("[yellow]  /vpn status[/]")
         return ""
 
     if cmd == "verify":

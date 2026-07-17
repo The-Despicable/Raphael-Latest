@@ -104,9 +104,11 @@ class ProxyGuard:
             return "wireguard"
         if self._check_protonvpn(silent=True):
             return "protonvpn"
+        if self._check_openvpn(silent=True):
+            return "openvpn"
         if self._check_vpn_passive(silent=True):
             return "vpn"
-        raise ProxyError("No proxy found (checked: Tor:9050, WireGuard, ProtonVPN, system VPN)")
+        raise ProxyError("No proxy found (checked: Tor:9050, WireGuard, ProtonVPN, OpenVPN, system VPN)")
 
     def verify(self) -> bool:
         if self._dev_mode:
@@ -128,7 +130,7 @@ class ProxyGuard:
             logger.info("=== VERIFICATION PASSED — TOR ACTIVE ===\n")
             return True
 
-        if strategy in ("wireguard", "protonvpn", "vpn"):
+        if strategy in ("wireguard", "protonvpn", "openvpn", "vpn"):
             ext_ip = self._get_exit_ip()
             self._exit_ip = ext_ip
             logger.info(f"  ✓ External IP: {ext_ip or 'unknown'}")
@@ -230,6 +232,8 @@ class ProxyGuard:
             strategy = "wireguard"
         elif self._check_protonvpn(silent=True):
             strategy = "protonvpn"
+        elif self._check_openvpn(silent=True):
+            strategy = "openvpn"
         elif self._check_vpn_passive(silent=True):
             strategy = "vpn"
         else:
@@ -304,6 +308,112 @@ class ProxyGuard:
             return False
         except Exception:
             return False
+
+    def _check_openvpn(self, silent=False) -> bool:
+        """Detect active OpenVPN connection via tun interface or process."""
+        try:
+            # Check for tun interfaces (common OpenVPN device name)
+            r = subprocess.run(["ip", "link", "show", "type", "tun"], capture_output=True, text=True, timeout=3)
+            if "tun" in r.stdout and "UP" in r.stdout:
+                if not silent:
+                    logger.info("  ✓ OpenVPN tun interface detected")
+                return True
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+        try:
+            # Check for openvpn process
+            r = subprocess.run(["pgrep", "-a", "openvpn"], capture_output=True, text=True, timeout=3)
+            if r.stdout.strip():
+                if not silent:
+                    for line in r.stdout.strip().split("\n"):
+                        logger.info(f"  ✓ OpenVPN: {line.strip()[:80]}")
+                return True
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+        # Check for /proc/net/tun (Linux tun device)
+        try:
+            if os.path.exists("/proc/net/tun"):
+                with open("/proc/net/tun") as f:
+                    data = f.read().strip()
+                if data:
+                    if not silent:
+                        logger.info("  ✓ OpenVPN tun device present")
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def openvpn_connect(self, config_path: str, auth_user_pass: str = None, log_path: str = None) -> bool:
+        """Start OpenVPN connection. Returns True if started successfully."""
+        if not os.path.exists(config_path):
+            logger.error(f"  ✗ OpenVPN config not found: {config_path}")
+            return False
+        log_path = log_path or f"/tmp/openvpn_{int(time.time())}.log"
+        cmd = ["sudo", "openvpn", "--config", config_path, "--daemon", "--log", log_path, "--verb", "3"]
+        if auth_user_pass and os.path.exists(auth_user_pass):
+            cmd.extend(["--auth-user-pass", auth_user_pass])
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if r.returncode == 0:
+                logger.info(f"  ✓ OpenVPN started: {config_path}")
+                logger.info(f"  ✓ Log: {log_path}")
+                return True
+            else:
+                logger.error(f"  ✗ OpenVPN failed: {r.stderr.strip()}")
+                return False
+        except subprocess.TimeoutExpired:
+            logger.warning("  ⚠ OpenVPN start timed out (may still connect)")
+            return True
+        except Exception as e:
+            logger.error(f"  ✗ OpenVPN error: {e}")
+            return False
+
+    def openvpn_disconnect(self) -> bool:
+        """Kill all OpenVPN processes."""
+        try:
+            r = subprocess.run(["sudo", "pkill", "openvpn"], capture_output=True, text=True, timeout=5)
+            if r.returncode == 0:
+                logger.info("  ✓ OpenVPN stopped")
+                return True
+            logger.warning("  ⚠ No OpenVPN processes found")
+            return False
+        except Exception as e:
+            logger.error(f"  ✗ OpenVPN kill error: {e}")
+            return False
+
+    def openvpn_status(self) -> dict:
+        """Get OpenVPN connection details."""
+        result = {"connected": False, "interface": None, "ip": None, "config": None, "uptime": None}
+        try:
+            r = subprocess.run(["pgrep", "-a", "openvpn"], capture_output=True, text=True, timeout=3)
+            if r.stdout.strip():
+                result["connected"] = True
+                # Extract config path from process args
+                for line in r.stdout.strip().split("\n"):
+                    parts = line.split()
+                    for i, p in enumerate(parts):
+                        if p == "--config" and i + 1 < len(parts):
+                            result["config"] = parts[i + 1]
+        except Exception:
+            pass
+        try:
+            # Get tun interface IP
+            r = subprocess.run(["ip", "-4", "addr", "show", "type", "tun"], capture_output=True, text=True, timeout=3)
+            import re
+            m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", r.stdout)
+            if m:
+                result["ip"] = m.group(1)
+            # Get interface name
+            m2 = re.search(r"\d+: (\w+):", r.stdout)
+            if m2:
+                result["interface"] = m2.group(1)
+        except Exception:
+            pass
+        return result
 
     def _check_tor(self, silent=False) -> bool:
         try:

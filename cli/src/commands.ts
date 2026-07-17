@@ -80,6 +80,24 @@ import mode from './commands/raphael/mode.ts'
 import persona from './commands/raphael/persona.ts'
 import target from './commands/raphael/target.ts'
 import opsec from './commands/raphael/opsec.ts'
+import autonomous from './commands/raphael/autonomous/index.ts'
+import community from './commands/raphael/community/index.ts'
+import debate from './commands/raphael/debate/index.ts'
+import deepResearch from './commands/raphael/deep-research/index.ts'
+import kali from './commands/raphael/kali/index.ts'
+import c2 from './commands/raphael/c2/index.ts'
+import exploit from './commands/raphael/exploit/index.ts'
+import harvester from './commands/raphael/harvester/index.ts'
+import brain from './commands/raphael/brain/index.ts'
+import conductor from './commands/raphael/conductor/index.ts'
+import autonomous from './commands/raphael/autonomous/index.js'
+import community from './commands/raphael/community/index.js'
+import debate from './commands/raphael/debate/index.js'
+import deepResearch from './commands/raphael/deep-research/index.js'
+import kali from './commands/raphael/kali/index.js'
+import c2 from './commands/raphael/c2/index.js'
+import exploit from './commands/raphael/exploit/index.js'
+import harvester from './commands/raphael/harvester/index.js'
 import { feature } from 'bun:bundle'
 import { isBuddyEnabled } from './buddy/feature.js'
 // Dead code elimination: conditional imports
@@ -396,6 +414,16 @@ const COMMANDS = memoize((): Command[] => [
     persona,
     target,
     opsec,
+    autonomous,
+    community,
+    debate,
+    deepResearch,
+    kali,
+    c2,
+    exploit,
+    harvester,
+    brain,
+    conductor,
     ...(process.env.USER_TYPE === 'ant' && !process.env.IS_DEMO
     ? INTERNAL_ONLY_COMMANDS
     : []),

